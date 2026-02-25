@@ -370,6 +370,11 @@
                         <Button Content="Home" ToolTip="Reset zoom" x:Name="BtnHome"
                                 Style="{StaticResource DarkButton}" Width="46" Margin="0,0,3,0"
                                 Opacity="0.8" FontSize="11" Click="OnGraphHome"/>
+                        <ToggleButton Content="Filter Spikes"
+                                      IsChecked="{Binding IsSpikeFilterEnabled}"
+                                      Style="{StaticResource SpikeFilterToggle}"
+                                      Opacity="0.8" Margin="0,0,3,0"
+                                      ToolTip="Toggle spike noise filter on/off"/>
                         <Button Content="Clear Graph" Command="{Binding ClearGraphCommand}"
                                 Style="{StaticResource DarkButton}" Opacity="0.8"/>
                     </StackPanel>

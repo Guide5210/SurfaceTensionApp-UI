@@ -102,10 +102,22 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly object _logLock = new();
 
     // ══════════════════════════════════════════════════════════════
+    // Spike filter toggle
+    // ══════════════════════════════════════════════════════════════
+    [ObservableProperty] private bool _isSpikeFilterEnabled;
+
+    partial void OnIsSpikeFilterEnabledChanged(bool value)
+    {
+        SpikeFilterToggled?.Invoke();
+        AppendLog(value ? "✓ Spike filter ON" : "✓ Spike filter OFF");
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // Graph data (accessed by code-behind to update ScottPlot)
     // ══════════════════════════════════════════════════════════════
     public event Action? GraphDataUpdated;
     public event Action? GraphRunCompleted;
+    public event Action? SpikeFilterToggled;
 
     // ══════════════════════════════════════════════════════════════
     // Internal state

@@ -189,3 +189,59 @@ public static class OutlierRejection
         return n % 2 == 1 ? sorted[n / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2.0;
     }
 }
+
+/// <summary>
+/// Filters spikes from time-series force data using local median + MAD.
+/// Only replaces points that deviate significantly from local neighbors;
+/// non-spike data passes through unchanged.
+/// </summary>
+public static class SpikeFilter
+{
+    public static double[] Apply(IList<double> forces, int windowSize = 7, double threshold = 3.5)
+    {
+        int n = forces.Count;
+        if (n < windowSize)
+            return forces.ToArray();
+
+        int half = windowSize / 2;
+        double[] result = new double[n];
+
+        for (int i = 0; i < n; i++)
+        {
+            int start = Math.Max(0, i - half);
+            int end = Math.Min(n - 1, i + half);
+            int wLen = end - start + 1;
+
+            // Build sorted local window for median
+            double[] local = new double[wLen];
+            for (int j = 0; j < wLen; j++)
+                local[j] = forces[start + j];
+            Array.Sort(local);
+
+            double median = wLen % 2 == 1
+                ? local[wLen / 2]
+                : (local[wLen / 2 - 1] + local[wLen / 2]) / 2.0;
+
+            // Compute local MAD (median absolute deviation)
+            double[] absDevs = new double[wLen];
+            for (int j = 0; j < wLen; j++)
+                absDevs[j] = Math.Abs(local[j] - median);
+            Array.Sort(absDevs);
+
+            double mad = wLen % 2 == 1
+                ? absDevs[wLen / 2]
+                : (absDevs[wLen / 2 - 1] + absDevs[wLen / 2]) / 2.0;
+
+            if (mad < 1e-10)
+            {
+                result[i] = forces[i];
+                continue;
+            }
+
+            double deviation = Math.Abs(forces[i] - median);
+            result[i] = deviation > threshold * mad ? median : forces[i];
+        }
+
+        return result;
+    }
+}
