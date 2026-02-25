@@ -200,7 +200,7 @@ public static class SpikeFilter
     public static double[] Apply(IList<double> forces, int windowSize = 7, double threshold = 3.5)
     {
         int n = forces.Count;
-        if (n < windowSize)
+        if (n < 3)
             return forces.ToArray();
 
         int half = windowSize / 2;
@@ -232,11 +232,11 @@ public static class SpikeFilter
                 ? absDevs[wLen / 2]
                 : (absDevs[wLen / 2 - 1] + absDevs[wLen / 2]) / 2.0;
 
-            if (mad < 1e-10)
-            {
-                result[i] = forces[i];
-                continue;
-            }
+            // Apply MAD floor: when data is very consistent, MAD ≈ 0
+            // but spikes should still be detected. Use 1% of |median|
+            // with an absolute minimum so near-zero signals also work.
+            double madFloor = Math.Max(Math.Abs(median) * 0.01, 1e-6);
+            if (mad < madFloor) mad = madFloor;
 
             double deviation = Math.Abs(forces[i] - median);
             result[i] = deviation > threshold * mad ? median : forces[i];
