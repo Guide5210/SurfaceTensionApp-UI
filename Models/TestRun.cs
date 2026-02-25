@@ -191,57 +191,65 @@ public static class OutlierRejection
 }
 
 /// <summary>
-/// Filters spikes from time-series force data using local median + MAD.
-/// Only replaces points that deviate significantly from local neighbors;
-/// non-spike data passes through unchanged.
+/// Post-run spike filter using global modified Z-score.
+/// Removes data points that deviate significantly from the overall signal distribution.
+/// Uses global median + MAD across the entire run — much more reliable than local windows
+/// because the global MAD is never zero when the signal has any natural variation.
 /// </summary>
 public static class SpikeFilter
 {
-    public static double[] Apply(IList<double> forces, int windowSize = 7, double threshold = 3.5)
+    public static (double[] times, double[] forces, int spikeCount) Apply(
+        double[] times, double[] forces, double threshold = 3.5)
     {
-        int n = forces.Count;
-        if (n < 3)
-            return forces.ToArray();
+        int n = forces.Length;
+        if (n < 5)
+            return (times, forces, 0);
 
-        int half = windowSize / 2;
-        double[] result = new double[n];
+        // Global median
+        double[] sorted = new double[n];
+        Array.Copy(forces, sorted, n);
+        Array.Sort(sorted);
+        double median = n % 2 == 1
+            ? sorted[n / 2]
+            : (sorted[n / 2 - 1] + sorted[n / 2]) / 2.0;
+
+        // Global MAD (median absolute deviation)
+        double[] absDevs = new double[n];
+        for (int i = 0; i < n; i++)
+            absDevs[i] = Math.Abs(forces[i] - median);
+        double[] sortedDevs = new double[n];
+        Array.Copy(absDevs, sortedDevs, n);
+        Array.Sort(sortedDevs);
+        double mad = n % 2 == 1
+            ? sortedDevs[n / 2]
+            : (sortedDevs[n / 2 - 1] + sortedDevs[n / 2]) / 2.0;
+
+        // MAD floor: 2% of |median| to prevent over-rejection on tight data
+        double madFloor = Math.Max(Math.Abs(median) * 0.02, 1e-6);
+        if (mad < madFloor) mad = madFloor;
+
+        // Remove spike points that exceed the threshold
+        var filteredTimes = new List<double>(n);
+        var filteredForces = new List<double>(n);
+        int spikeCount = 0;
 
         for (int i = 0; i < n; i++)
         {
-            int start = Math.Max(0, i - half);
-            int end = Math.Min(n - 1, i + half);
-            int wLen = end - start + 1;
-
-            // Build sorted local window for median
-            double[] local = new double[wLen];
-            for (int j = 0; j < wLen; j++)
-                local[j] = forces[start + j];
-            Array.Sort(local);
-
-            double median = wLen % 2 == 1
-                ? local[wLen / 2]
-                : (local[wLen / 2 - 1] + local[wLen / 2]) / 2.0;
-
-            // Compute local MAD (median absolute deviation)
-            double[] absDevs = new double[wLen];
-            for (int j = 0; j < wLen; j++)
-                absDevs[j] = Math.Abs(local[j] - median);
-            Array.Sort(absDevs);
-
-            double mad = wLen % 2 == 1
-                ? absDevs[wLen / 2]
-                : (absDevs[wLen / 2 - 1] + absDevs[wLen / 2]) / 2.0;
-
-            // Apply MAD floor: when data is very consistent, MAD ≈ 0
-            // but spikes should still be detected. Use 1% of |median|
-            // with an absolute minimum so near-zero signals also work.
-            double madFloor = Math.Max(Math.Abs(median) * 0.01, 1e-6);
-            if (mad < madFloor) mad = madFloor;
-
-            double deviation = Math.Abs(forces[i] - median);
-            result[i] = deviation > threshold * mad ? median : forces[i];
+            double modZ = 0.6745 * Math.Abs(forces[i] - median) / mad;
+            if (modZ > threshold)
+            {
+                spikeCount++;
+            }
+            else
+            {
+                filteredTimes.Add(times[i]);
+                filteredForces.Add(forces[i]);
+            }
         }
 
-        return result;
+        if (spikeCount == 0)
+            return (times, forces, 0);
+
+        return (filteredTimes.ToArray(), filteredForces.ToArray(), spikeCount);
     }
 }

@@ -88,6 +88,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
     };
 
     // ══════════════════════════════════════════════════════════════
+    // Measurement Configuration
+    // ══════════════════════════════════════════════════════════════
+    public MeasurementConfig Config { get; } = new();
+
+    public ObservableCollection<string> MethodOptions { get; } = new() { "Du Noüy Ring", "Wilhelmy Plate" };
+    public ObservableCollection<string> LoadCellOptions { get; } = new() { "100g", "30g" };
+    public ObservableCollection<string> UnitOptions { get; } = new() { "mN/m", "dyn/cm" };
+
+    // ══════════════════════════════════════════════════════════════
     // Results & Statistics
     // ══════════════════════════════════════════════════════════════
     public ObservableCollection<RunResultRow> RunResults { get; } = new();
@@ -847,7 +856,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
             string dir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
                 "SurfaceTensionApp");
-            string path = PdfReportService.GenerateReport(_allData, dir, graphImage);
+            string path = PdfReportService.GenerateReport(
+                _allData, dir, graphImage,
+                config: Config,
+                spikeFilterEnabled: IsSpikeFilterEnabled);
             AppendLog($"✓ PDF report saved: {path}");
             MessageBox.Show($"Report saved to:\n{path}", "PDF Report", MessageBoxButton.OK, MessageBoxImage.Information);
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });

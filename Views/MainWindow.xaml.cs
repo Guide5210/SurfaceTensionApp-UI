@@ -104,12 +104,8 @@ public partial class MainWindow : Window
             if (times.Count < 2) return;
             if (_livePlot != null) PlotControl.Plot.Remove(_livePlot);
 
-            double[] timesArr = times.ToArray();
-            double[] forcesArr = _vm.IsSpikeFilterEnabled
-                ? SpikeFilter.Apply(forces)
-                : forces.ToArray();
-
-            _livePlot = PlotControl.Plot.Add.Scatter(timesArr, forcesArr);
+            // Live data is always raw — filtering is post-run only
+            _livePlot = PlotControl.Plot.Add.Scatter(times.ToArray(), forces.ToArray());
             _livePlot.Color = ScottPlot.Color.FromHex("#4A9EFF");
             _livePlot.LineWidth = 2;
             _livePlot.MarkerSize = 0;
@@ -150,14 +146,23 @@ public partial class MainWindow : Window
                 double[] rawTimes = _vm.LiveTimes.ToArray();
                 double[] rawForces = _vm.LiveForces.ToArray();
 
-                // Build display forces (filtered or raw)
-                double[] displayForces = _vm.IsSpikeFilterEnabled
-                    ? SpikeFilter.Apply(rawForces)
-                    : rawForces;
+                // Build display data: apply post-run filter if enabled
+                double[] displayTimes, displayForces;
+                if (_vm.IsSpikeFilterEnabled)
+                {
+                    var (ft, ff, _) = SpikeFilter.Apply(rawTimes, rawForces);
+                    displayTimes = ft;
+                    displayForces = ff;
+                }
+                else
+                {
+                    displayTimes = rawTimes;
+                    displayForces = rawForces;
+                }
 
                 // Replace live plot with a proper completed-run scatter
                 PlotControl.Plot.Remove(_livePlot);
-                var scatter = PlotControl.Plot.Add.Scatter(rawTimes, displayForces);
+                var scatter = PlotControl.Plot.Add.Scatter(displayTimes, displayForces);
                 scatter.Color = color;
                 scatter.LineWidth = 1.5f;
                 scatter.MarkerSize = 0;
@@ -169,9 +174,9 @@ public partial class MainWindow : Window
                     int peakIdx = 0; double peakVal = displayForces[0];
                     for (int i = 1; i < displayForces.Length; i++)
                         if (displayForces[i] > peakVal) { peakVal = displayForces[i]; peakIdx = i; }
-                    if (peakIdx < rawTimes.Length)
+                    if (peakIdx < displayTimes.Length)
                     {
-                        peakMarker = PlotControl.Plot.Add.Marker(rawTimes[peakIdx], peakVal);
+                        peakMarker = PlotControl.Plot.Add.Marker(displayTimes[peakIdx], peakVal);
                         peakMarker.Color = color;
                         peakMarker.Size = 6;
                     }
@@ -225,12 +230,21 @@ public partial class MainWindow : Window
                     if (entry.PeakMarker != null)
                         PlotControl.Plot.Remove(entry.PeakMarker);
 
-                    // Rebuild with filtered or raw data
-                    double[] displayForces = filter
-                        ? SpikeFilter.Apply(entry.RawForces)
-                        : entry.RawForces;
+                    // Rebuild with filtered or raw data (global post-run filter)
+                    double[] displayTimes, displayForces;
+                    if (filter)
+                    {
+                        var (ft, ff, _) = SpikeFilter.Apply(entry.RawTimes, entry.RawForces);
+                        displayTimes = ft;
+                        displayForces = ff;
+                    }
+                    else
+                    {
+                        displayTimes = entry.RawTimes;
+                        displayForces = entry.RawForces;
+                    }
 
-                    var scatter = PlotControl.Plot.Add.Scatter(entry.RawTimes, displayForces);
+                    var scatter = PlotControl.Plot.Add.Scatter(displayTimes, displayForces);
                     scatter.Color = entry.OrigColor;
                     scatter.LineWidth = 1.5f;
                     scatter.MarkerSize = 0;
@@ -244,7 +258,7 @@ public partial class MainWindow : Window
                         for (int i = 1; i < displayForces.Length; i++)
                             if (displayForces[i] > peakVal) { peakVal = displayForces[i]; peakIdx = i; }
 
-                        var marker = PlotControl.Plot.Add.Marker(entry.RawTimes[peakIdx], peakVal);
+                        var marker = PlotControl.Plot.Add.Marker(displayTimes[peakIdx], peakVal);
                         marker.Color = entry.OrigColor;
                         marker.Size = 6;
                         marker.IsVisible = entry.IsVisible;
