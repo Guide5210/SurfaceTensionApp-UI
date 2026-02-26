@@ -191,65 +191,116 @@ public static class OutlierRejection
 }
 
 /// <summary>
-/// Post-run spike filter using global modified Z-score.
-/// Removes data points that deviate significantly from the overall signal distribution.
-/// Uses global median + MAD across the entire run — much more reliable than local windows
-/// because the global MAD is never zero when the signal has any natural variation.
+/// Threshold-based spike filter with linear interpolation.
+/// Points where force exceeds the user-specified threshold are replaced
+/// with linearly interpolated values from the nearest clean neighbors.
+/// The output arrays are the same length as the input — no points are
+/// removed, preserving the original graph shape.
 /// </summary>
 public static class SpikeFilter
 {
+    /// <summary>
+    /// Replace spike points with linearly interpolated values.
+    /// </summary>
+    /// <param name="times">Time values.</param>
+    /// <param name="forces">Force values.</param>
+    /// <param name="maxForce">Force threshold — points with force &gt; maxForce are spikes.
+    /// If null, auto-detects using IQR method (Q3 + 2.5 * IQR).</param>
+    /// <returns>Same-length arrays with spikes replaced by interpolation, plus spike count.</returns>
     public static (double[] times, double[] forces, int spikeCount) Apply(
-        double[] times, double[] forces, double threshold = 3.5)
+        double[] times, double[] forces, double? maxForce = null)
     {
         int n = forces.Length;
-        if (n < 5)
+        if (n < 3)
             return (times, forces, 0);
 
-        // Global median
-        double[] sorted = new double[n];
-        Array.Copy(forces, sorted, n);
-        Array.Sort(sorted);
-        double median = n % 2 == 1
-            ? sorted[n / 2]
-            : (sorted[n / 2 - 1] + sorted[n / 2]) / 2.0;
+        // Determine threshold
+        double upperThreshold;
+        if (maxForce.HasValue)
+        {
+            upperThreshold = maxForce.Value;
+        }
+        else
+        {
+            // Auto-detect using IQR
+            double[] sorted = new double[n];
+            Array.Copy(forces, sorted, n);
+            Array.Sort(sorted);
+            double q1 = sorted[n / 4];
+            double q3 = sorted[3 * n / 4];
+            double iqr = q3 - q1;
+            upperThreshold = q3 + 2.5 * iqr;
+        }
 
-        // Global MAD (median absolute deviation)
-        double[] absDevs = new double[n];
-        for (int i = 0; i < n; i++)
-            absDevs[i] = Math.Abs(forces[i] - median);
-        double[] sortedDevs = new double[n];
-        Array.Copy(absDevs, sortedDevs, n);
-        Array.Sort(sortedDevs);
-        double mad = n % 2 == 1
-            ? sortedDevs[n / 2]
-            : (sortedDevs[n / 2 - 1] + sortedDevs[n / 2]) / 2.0;
-
-        // MAD floor: 2% of |median| to prevent over-rejection on tight data
-        double madFloor = Math.Max(Math.Abs(median) * 0.02, 1e-6);
-        if (mad < madFloor) mad = madFloor;
-
-        // Remove spike points that exceed the threshold
-        var filteredTimes = new List<double>(n);
-        var filteredForces = new List<double>(n);
+        // Mark spike points
+        bool[] isSpike = new bool[n];
         int spikeCount = 0;
-
         for (int i = 0; i < n; i++)
         {
-            double modZ = 0.6745 * Math.Abs(forces[i] - median) / mad;
-            if (modZ > threshold)
+            if (forces[i] > upperThreshold)
             {
+                isSpike[i] = true;
                 spikeCount++;
-            }
-            else
-            {
-                filteredTimes.Add(times[i]);
-                filteredForces.Add(forces[i]);
             }
         }
 
         if (spikeCount == 0)
             return (times, forces, 0);
 
-        return (filteredTimes.ToArray(), filteredForces.ToArray(), spikeCount);
+        // Replace spikes with linear interpolation
+        double[] filtered = new double[n];
+        Array.Copy(forces, filtered, n);
+
+        int idx = 0;
+        while (idx < n)
+        {
+            if (!isSpike[idx]) { idx++; continue; }
+
+            // Find the extent of this spike region
+            int regionStart = idx;
+            while (idx < n && isSpike[idx]) idx++;
+            int regionEnd = idx - 1;
+
+            // Boundary clean points for interpolation
+            int left = regionStart - 1;
+            int right = regionEnd + 1;
+
+            if (left < 0 && right >= n)
+            {
+                // Entire signal is above threshold — can't interpolate
+                continue;
+            }
+
+            if (left < 0)
+            {
+                // Spike at the very beginning — extend right boundary value
+                for (int j = regionStart; j <= regionEnd; j++)
+                    filtered[j] = forces[right];
+                continue;
+            }
+
+            if (right >= n)
+            {
+                // Spike at the very end — extend left boundary value
+                for (int j = regionStart; j <= regionEnd; j++)
+                    filtered[j] = forces[left];
+                continue;
+            }
+
+            // Linear interpolation between left and right boundary
+            double tLeft = times[left];
+            double fLeft = forces[left];
+            double tRight = times[right];
+            double fRight = forces[right];
+            double dt = tRight - tLeft;
+
+            for (int j = regionStart; j <= regionEnd; j++)
+            {
+                double t = dt > 1e-12 ? (times[j] - tLeft) / dt : 0.5;
+                filtered[j] = fLeft + t * (fRight - fLeft);
+            }
+        }
+
+        return (times, filtered, spikeCount);
     }
 }

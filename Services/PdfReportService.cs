@@ -20,7 +20,8 @@ public static class PdfReportService
         string? title = null,
         string? notes = null,
         MeasurementConfig? config = null,
-        bool spikeFilterEnabled = false)
+        bool spikeFilterEnabled = false,
+        double? spikeThreshold = null)
     {
         Directory.CreateDirectory(outputDir);
         string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
@@ -34,7 +35,7 @@ public static class PdfReportService
                 page.Margin(1.5f, Unit.Centimetre);
                 page.DefaultTextStyle(x => x.FontSize(10));
                 page.Header().Element(c => ComposeHeader(c, title, config));
-                page.Content().Element(c => ComposeContent(c, allData, graphImage, notes, config, spikeFilterEnabled));
+                page.Content().Element(c => ComposeContent(c, allData, graphImage, notes, config, spikeFilterEnabled, spikeThreshold));
                 page.Footer().Element(ComposeFooter);
             });
         }).GeneratePdf(path);
@@ -63,7 +64,8 @@ public static class PdfReportService
     }
 
     private static void ComposeContent(IContainer container, Dictionary<string, SpeedGroup> allData,
-        byte[]? graphImage, string? notes, MeasurementConfig? config, bool spikeFilterEnabled)
+        byte[]? graphImage, string? notes, MeasurementConfig? config, bool spikeFilterEnabled,
+        double? spikeThreshold)
     {
         container.PaddingVertical(10).Column(col =>
         {
@@ -202,7 +204,10 @@ public static class PdfReportService
                     c.Item().Text($"Speed profiles tested: {speedCount}").FontSize(10);
                     c.Item().Text("Outlier method: Modified Z-score (MAD, threshold=3.5)").FontSize(9).FontColor("#666666");
                     if (spikeFilterEnabled)
-                        c.Item().Text("Spike filter: Enabled (global modified Z-score, post-run)").FontSize(9).FontColor("#666666");
+                    {
+                        string thInfo = spikeThreshold.HasValue ? $"threshold={spikeThreshold.Value} N" : "auto-detect";
+                        c.Item().Text($"Spike filter: Enabled ({thInfo}, linear interpolation)").FontSize(9).FontColor("#666666");
+                    }
                 });
             });
             col.Item().PaddingVertical(8);
@@ -408,16 +413,19 @@ public static class PdfReportService
 
                 if (spikeFilterEnabled)
                 {
+                    string thresholdDesc = spikeThreshold.HasValue
+                        ? $"{spikeThreshold.Value} N (user-specified)"
+                        : "Auto-detect (Q3 + 2.5 x IQR)";
                     oc.Item().Text("Spike Noise Filter (Time-Series Data)").FontSize(10).Bold();
-                    oc.Item().Text("Applied: Yes — spikes removed from graph display").FontSize(9).FontColor("#2E7D32");
-                    oc.Item().Text("Method: Global modified Z-score on raw force data (post-run)").FontSize(9);
+                    oc.Item().Text("Applied: Yes — spikes replaced with interpolated values").FontSize(9).FontColor("#2E7D32");
+                    oc.Item().Text("Method: Threshold-based detection + linear interpolation").FontSize(9);
+                    oc.Item().Text($"Threshold: {thresholdDesc}").FontSize(9);
                     oc.Item().Text("Algorithm:").FontSize(9).Bold();
-                    oc.Item().Text("  1. Compute the global median of all force values in the run").FontSize(8);
-                    oc.Item().Text("  2. Compute global MAD (median absolute deviation)").FontSize(8);
-                    oc.Item().Text("  3. Apply MAD floor = max(2% of |median|, 1e-6) for numerical stability").FontSize(8);
-                    oc.Item().Text("  4. For each point: modZ = 0.6745 x |force - median| / MAD").FontSize(8);
-                    oc.Item().Text("  5. Remove points where |modZ| > 3.5 (spike detected)").FontSize(8);
-                    oc.Item().Text("  6. Graph line connects across removed points seamlessly").FontSize(8);
+                    oc.Item().Text("  1. Points where force > threshold are marked as spikes").FontSize(8);
+                    oc.Item().Text("  2. Consecutive spike points are grouped into regions").FontSize(8);
+                    oc.Item().Text("  3. Each spike region is replaced by linear interpolation").FontSize(8);
+                    oc.Item().Text("     between the nearest clean neighbors on each side").FontSize(8);
+                    oc.Item().Text("  4. Output has the same number of points — no data removed").FontSize(8);
                     oc.Item().PaddingVertical(2);
                     oc.Item().Text("Note: Raw data is always preserved. Filter is applied at render time only.")
                         .FontSize(8).FontColor("#888888");

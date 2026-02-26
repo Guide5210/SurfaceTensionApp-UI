@@ -388,6 +388,16 @@
                                       Style="{StaticResource SpikeFilterToggle}"
                                       Opacity="0.8" Margin="0,0,3,0"
                                       ToolTip="Toggle spike noise filter on/off"/>
+                        <TextBlock Text="Max:" Foreground="{StaticResource TextDimBrush}"
+                                   VerticalAlignment="Center" FontSize="10" Margin="4,0,2,0"/>
+                        <TextBox Text="{Binding SpikeThresholdText, UpdateSourceTrigger=PropertyChanged}"
+                                 Width="55" FontSize="10" Padding="3,2"
+                                 Background="#2A2A3E" Foreground="White" CaretBrush="White"
+                                 BorderBrush="{StaticResource BorderBrush}"
+                                 VerticalAlignment="Center"
+                                 ToolTip="Max force threshold (N). Leave empty for auto-detect."/>
+                        <TextBlock Text="N" Foreground="{StaticResource TextDimBrush}"
+                                   VerticalAlignment="Center" FontSize="10" Margin="2,0,3,0"/>
                         <Button Content="Clear Graph" Command="{Binding ClearGraphCommand}"
                                 Style="{StaticResource DarkButton}" Opacity="0.8"/>
                     </StackPanel>

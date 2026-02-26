@@ -150,7 +150,7 @@ public partial class MainWindow : Window
                 double[] displayTimes, displayForces;
                 if (_vm.IsSpikeFilterEnabled)
                 {
-                    var (ft, ff, _) = SpikeFilter.Apply(rawTimes, rawForces);
+                    var (ft, ff, _) = SpikeFilter.Apply(rawTimes, rawForces, _vm.SpikeThreshold);
                     displayTimes = ft;
                     displayForces = ff;
                 }
@@ -230,11 +230,11 @@ public partial class MainWindow : Window
                     if (entry.PeakMarker != null)
                         PlotControl.Plot.Remove(entry.PeakMarker);
 
-                    // Rebuild with filtered or raw data (global post-run filter)
+                    // Rebuild with filtered or raw data (threshold + interpolation)
                     double[] displayTimes, displayForces;
                     if (filter)
                     {
-                        var (ft, ff, _) = SpikeFilter.Apply(entry.RawTimes, entry.RawForces);
+                        var (ft, ff, _) = SpikeFilter.Apply(entry.RawTimes, entry.RawForces, _vm.SpikeThreshold);
                         displayTimes = ft;
                         displayForces = ff;
                     }

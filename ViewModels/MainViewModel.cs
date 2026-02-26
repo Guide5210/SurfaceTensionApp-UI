@@ -111,14 +111,28 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly object _logLock = new();
 
     // ══════════════════════════════════════════════════════════════
-    // Spike filter toggle
+    // Spike filter toggle + threshold
     // ══════════════════════════════════════════════════════════════
     [ObservableProperty] private bool _isSpikeFilterEnabled;
+    [ObservableProperty] private string _spikeThresholdText = "";
+
+    /// <summary>
+    /// Parsed threshold value (null = auto-detect using IQR).
+    /// </summary>
+    public double? SpikeThreshold =>
+        double.TryParse(SpikeThresholdText, out double v) && v > 0 ? v : null;
 
     partial void OnIsSpikeFilterEnabledChanged(bool value)
     {
         SpikeFilterToggled?.Invoke();
-        AppendLog(value ? "✓ Spike filter ON" : "✓ Spike filter OFF");
+        string thresholdInfo = SpikeThreshold.HasValue ? $", threshold={SpikeThreshold.Value} N" : ", auto-detect";
+        AppendLog(value ? $"✓ Spike filter ON{thresholdInfo}" : "✓ Spike filter OFF");
+    }
+
+    partial void OnSpikeThresholdTextChanged(string value)
+    {
+        if (IsSpikeFilterEnabled)
+            SpikeFilterToggled?.Invoke();
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -859,7 +873,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
             string path = PdfReportService.GenerateReport(
                 _allData, dir, graphImage,
                 config: Config,
-                spikeFilterEnabled: IsSpikeFilterEnabled);
+                spikeFilterEnabled: IsSpikeFilterEnabled,
+                spikeThreshold: SpikeThreshold);
             AppendLog($"✓ PDF report saved: {path}");
             MessageBox.Show($"Report saved to:\n{path}", "PDF Report", MessageBoxButton.OK, MessageBoxImage.Information);
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });
