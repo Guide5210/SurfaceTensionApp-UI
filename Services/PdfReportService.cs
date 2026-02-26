@@ -69,67 +69,79 @@ public static class PdfReportService
         {
             int sec = 1;
 
-            // ── Measurement Parameters ──
+            // ── Measurement Parameters (only show fields the user filled in) ──
             if (config != null)
             {
-                col.Item().Text($"{sec}. Measurement Parameters").FontSize(14).Bold().FontColor("#1A1A2E");
-                col.Item().PaddingVertical(4);
+                var rows = new List<string[]>();
+                rows.Add(new[] { "Method", config.Method });
+                rows.Add(new[] { "Load Cell", config.LoadCellType });
 
-                col.Item().Table(table =>
+                if (config.Method == "Wilhelmy Plate")
                 {
-                    table.ColumnsDefinition(columns =>
-                    {
-                        columns.RelativeColumn(3f);
-                        columns.RelativeColumn(3f);
-                    });
-
-                    var labelStyle = TextStyle.Default.FontSize(9).Bold();
-                    var valStyle = TextStyle.Default.FontSize(9);
-
-                    var rows = new List<string[]>
-                    {
-                        new[] { "Method", config.Method },
-                        new[] { "Load Cell", config.LoadCellType },
-                    };
-
-                    if (config.Method == "Wilhelmy Plate")
-                    {
-                        rows.Add(new[] { "Plate Width", $"{config.PlateWidth} mm" });
-                        rows.Add(new[] { "Plate Thickness", $"{config.PlateThickness} mm" });
+                    if (config.PlateWidth.HasValue)
+                        rows.Add(new[] { "Plate Width", $"{config.PlateWidth.Value} mm" });
+                    if (config.PlateThickness.HasValue)
+                        rows.Add(new[] { "Plate Thickness", $"{config.PlateThickness.Value} mm" });
+                    if (!string.IsNullOrWhiteSpace(config.PlateMaterial))
                         rows.Add(new[] { "Plate Material", config.PlateMaterial });
-                        rows.Add(new[] { "Wetted Perimeter", $"{config.WettedLengthMm:F3} mm" });
-                    }
-                    else
-                    {
-                        rows.Add(new[] { "Ring Mean Radius (R)", $"{config.RingRadius} mm" });
-                        rows.Add(new[] { "Wire Radius (r)", $"{config.WireRadius} mm" });
+                    if (config.WettedLengthMm.HasValue)
+                        rows.Add(new[] { "Wetted Perimeter", $"{config.WettedLengthMm.Value:F3} mm" });
+                }
+                else
+                {
+                    if (config.RingRadius.HasValue)
+                        rows.Add(new[] { "Ring Mean Radius (R)", $"{config.RingRadius.Value} mm" });
+                    if (config.WireRadius.HasValue)
+                        rows.Add(new[] { "Wire Radius (r)", $"{config.WireRadius.Value} mm" });
+                    if (!string.IsNullOrWhiteSpace(config.RingMaterial))
                         rows.Add(new[] { "Ring Material", config.RingMaterial });
-                        rows.Add(new[] { "Wetted Length (4piR)", $"{config.WettedLengthMm:F3} mm" });
-                    }
+                    if (config.WettedLengthMm.HasValue)
+                        rows.Add(new[] { "Wetted Length (4piR)", $"{config.WettedLengthMm.Value:F3} mm" });
+                }
 
-                    rows.Add(new[] { "Correction Factor", $"{config.CorrectionFactor}" });
+                if (config.CorrectionFactor.HasValue)
+                    rows.Add(new[] { "Correction Factor", $"{config.CorrectionFactor.Value}" });
+                if (config.CanCalculate)
                     rows.Add(new[] { "Formula", config.FormulaDescription });
-                    rows.Add(new[] { "Display Unit", config.Unit });
+                rows.Add(new[] { "Display Unit", config.Unit });
+                if (!string.IsNullOrWhiteSpace(config.LiquidName))
+                    rows.Add(new[] { "Liquid / Sample", config.LiquidName });
+                if (config.Temperature.HasValue)
+                    rows.Add(new[] { "Temperature", $"{config.Temperature.Value} °C" });
+                if (!string.IsNullOrWhiteSpace(config.SampleId))
+                    rows.Add(new[] { "Sample ID", config.SampleId });
+                if (!string.IsNullOrWhiteSpace(config.OperatorName))
+                    rows.Add(new[] { "Operator", config.OperatorName });
 
-                    if (!string.IsNullOrWhiteSpace(config.LiquidName))
-                        rows.Add(new[] { "Liquid / Sample", config.LiquidName });
-                    rows.Add(new[] { "Temperature", $"{config.Temperature} °C" });
-                    if (!string.IsNullOrWhiteSpace(config.SampleId))
-                        rows.Add(new[] { "Sample ID", config.SampleId });
-                    if (!string.IsNullOrWhiteSpace(config.OperatorName))
-                        rows.Add(new[] { "Operator", config.OperatorName });
+                // Only show section if there's something beyond just method + load cell
+                if (rows.Count > 2)
+                {
+                    col.Item().Text($"{sec}. Measurement Parameters").FontSize(14).Bold().FontColor("#1A1A2E");
+                    col.Item().PaddingVertical(4);
 
-                    bool alt = false;
-                    foreach (var r in rows)
+                    col.Item().Table(table =>
                     {
-                        var bg = alt ? "#F8F9FA" : "#FFFFFF";
-                        alt = !alt;
-                        table.Cell().Background(bg).Padding(4).Text(r[0]).Style(labelStyle);
-                        table.Cell().Background(bg).Padding(4).Text(r[1]).Style(valStyle);
-                    }
-                });
-                col.Item().PaddingVertical(8);
-                sec++;
+                        table.ColumnsDefinition(columns =>
+                        {
+                            columns.RelativeColumn(3f);
+                            columns.RelativeColumn(3f);
+                        });
+
+                        var labelStyle = TextStyle.Default.FontSize(9).Bold();
+                        var valStyle = TextStyle.Default.FontSize(9);
+
+                        bool alt = false;
+                        foreach (var r in rows)
+                        {
+                            var bg = alt ? "#F8F9FA" : "#FFFFFF";
+                            alt = !alt;
+                            table.Cell().Background(bg).Padding(4).Text(r[0]).Style(labelStyle);
+                            table.Cell().Background(bg).Padding(4).Text(r[1]).Style(valStyle);
+                        }
+                    });
+                    col.Item().PaddingVertical(8);
+                    sec++;
+                }
             }
 
             // ── Notes ──
@@ -197,35 +209,41 @@ public static class PdfReportService
             sec++;
 
             // ── Surface Tension Results ──
-            if (config != null && allCleanPeaks.Count > 0)
+            if (config != null && config.CanCalculate && allCleanPeaks.Count > 0)
             {
                 string unit = config.Unit;
-                double stMean = config.CalculateSurfaceTension(globalMean);
-                double stMin = config.CalculateSurfaceTension(globalMin);
-                double stMax = config.CalculateSurfaceTension(globalMax);
-                double stStd = config.CalculateSurfaceTension(globalStd);
-                double stSe = config.CalculateSurfaceTension(se);
-                double stCiLower = config.CalculateSurfaceTension(ciLower);
-                double stCiUpper = config.CalculateSurfaceTension(ciUpper);
+                double? stMean = config.CalculateSurfaceTension(globalMean);
+                double? stMin = config.CalculateSurfaceTension(globalMin);
+                double? stMax = config.CalculateSurfaceTension(globalMax);
+                double? stStd = config.CalculateSurfaceTension(globalStd);
+                double? stSe = config.CalculateSurfaceTension(se);
+                double? stCiLower = config.CalculateSurfaceTension(ciLower);
+                double? stCiUpper = config.CalculateSurfaceTension(ciUpper);
 
-                col.Item().Text($"{sec}. Surface Tension Results").FontSize(14).Bold().FontColor("#1A1A2E");
-                col.Item().PaddingVertical(4);
-
-                col.Item().Background("#E8F5E9").Border(1).BorderColor("#4CAF50").Padding(12).Column(stc =>
+                if (stMean.HasValue)
                 {
-                    stc.Item().Text($"Mean Surface Tension: {stMean:F3} {unit}")
-                        .FontSize(14).Bold().FontColor("#2E7D32");
-                    stc.Item().PaddingVertical(4);
-                    stc.Item().Text($"Standard Deviation: {stStd:F3} {unit}").FontSize(10);
-                    stc.Item().Text($"Standard Error: {stSe:F3} {unit}").FontSize(10);
-                    stc.Item().Text($"95% CI: [{stCiLower:F3}, {stCiUpper:F3}] {unit}").FontSize(10);
-                    stc.Item().Text($"Range: {stMin:F3} - {stMax:F3} {unit}").FontSize(10);
-                    stc.Item().PaddingVertical(4);
-                    stc.Item().Text($"Temperature: {config.Temperature} °C").FontSize(9).FontColor("#555555");
-                    stc.Item().Text($"Calculation: {config.FormulaDescription}").FontSize(8).FontColor("#888888");
-                });
-                col.Item().PaddingVertical(8);
-                sec++;
+                    col.Item().Text($"{sec}. Surface Tension Results").FontSize(14).Bold().FontColor("#1A1A2E");
+                    col.Item().PaddingVertical(4);
+
+                    col.Item().Background("#E8F5E9").Border(1).BorderColor("#4CAF50").Padding(12).Column(stc =>
+                    {
+                        stc.Item().Text($"Mean Surface Tension: {stMean.Value:F3} {unit}")
+                            .FontSize(14).Bold().FontColor("#2E7D32");
+                        stc.Item().PaddingVertical(4);
+                        if (stStd.HasValue) stc.Item().Text($"Standard Deviation: {stStd.Value:F3} {unit}").FontSize(10);
+                        if (stSe.HasValue) stc.Item().Text($"Standard Error: {stSe.Value:F3} {unit}").FontSize(10);
+                        if (stCiLower.HasValue && stCiUpper.HasValue)
+                            stc.Item().Text($"95% CI: [{stCiLower.Value:F3}, {stCiUpper.Value:F3}] {unit}").FontSize(10);
+                        if (stMin.HasValue && stMax.HasValue)
+                            stc.Item().Text($"Range: {stMin.Value:F3} - {stMax.Value:F3} {unit}").FontSize(10);
+                        stc.Item().PaddingVertical(4);
+                        if (config.Temperature.HasValue)
+                            stc.Item().Text($"Temperature: {config.Temperature.Value} °C").FontSize(9).FontColor("#555555");
+                        stc.Item().Text($"Calculation: {config.FormulaDescription}").FontSize(8).FontColor("#888888");
+                    });
+                    col.Item().PaddingVertical(8);
+                    sec++;
+                }
             }
 
             // ── Descriptive Statistics (Force) ──
@@ -267,7 +285,7 @@ public static class PdfReportService
             sec++;
 
             // ── Per-Speed Statistics ──
-            bool hasST = config != null;
+            bool hasST = config?.CanCalculate == true;
             string stUnit = config?.Unit ?? "mN/m";
 
             col.Item().Text($"{sec}. Per-Speed Statistical Analysis").FontSize(14).Bold().FontColor("#1A1A2E");
@@ -311,8 +329,8 @@ public static class PdfReportService
                     table.Cell().Background(bg).Padding(3).Text(g.Rsd.ToString("F2") + "%").FontSize(8);
                     if (hasST)
                     {
-                        double st = config!.CalculateSurfaceTension(g.Avg);
-                        table.Cell().Background(bg).Padding(3).Text(st.ToString("F3")).FontSize(8);
+                        double? st = config!.CalculateSurfaceTension(g.Avg);
+                        table.Cell().Background(bg).Padding(3).Text(st?.ToString("F3") ?? "—").FontSize(8);
                     }
                     table.Cell().Background(bg).Padding(3).Text(g.OutlierIndices.Count.ToString()).FontSize(8);
                 }
@@ -362,8 +380,8 @@ public static class PdfReportService
                         table.Cell().Background(bg).Padding(3).Text(g.PeakForces[i].ToString("F6")).FontSize(8);
                         if (hasST)
                         {
-                            double st = config!.CalculateSurfaceTension(g.PeakForces[i]);
-                            table.Cell().Background(bg).Padding(3).Text(st.ToString("F3")).FontSize(8);
+                            double? st = config!.CalculateSurfaceTension(g.PeakForces[i]);
+                            table.Cell().Background(bg).Padding(3).Text(st?.ToString("F3") ?? "—").FontSize(8);
                         }
                         table.Cell().Background(bg).Padding(3).Text(run.PointCount.ToString()).FontSize(8);
                         table.Cell().Background(bg).Padding(3)

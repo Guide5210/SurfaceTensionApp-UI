@@ -123,7 +123,7 @@
                 </Setter.Value>
             </Setter>
         </Style>
-        <Style TargetType="MenuItem">
+        <Style x:Key="CtxMenuItem" TargetType="MenuItem">
             <Setter Property="Foreground" Value="#E8E8F0"/>
             <Setter Property="Padding" Value="8,6"/>
             <Setter Property="Template">
@@ -175,13 +175,26 @@
     </Window.Resources>
 
     <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- ══════════════════════════════════════════ MENU BAR ══════════════════════════════════════════ -->
+        <Menu Grid.Row="0" Background="#252538" Foreground="#E0E0E0" FontSize="12" Padding="4,2">
+            <MenuItem Header="Settings">
+                <MenuItem Header="Measurement Setup" Click="OnMeasurementSetupClick"/>
+            </MenuItem>
+        </Menu>
+
+        <Grid Grid.Row="1">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="260"/>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="320"/>
         </Grid.ColumnDefinitions>
 
-        <Border Grid.Column="0" Background="{StaticResource PanelBrush}" 
+        <Border Grid.Column="0" Background="{StaticResource PanelBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10">
                 <StackPanel>
@@ -227,132 +240,6 @@
                             </Button>
                             <TextBlock Text="{Binding ConnectionStatus}" FontSize="10"
                                        Foreground="{StaticResource TextDimBrush}"/>
-                        </StackPanel>
-                    </Border>
-
-                    <TextBlock Text="MEASUREMENT SETUP" FontSize="10" FontWeight="Bold"
-                               Foreground="{StaticResource TextDimBrush}" Margin="0,6,0,6"/>
-                    <Border Background="{StaticResource BgBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,10">
-                        <StackPanel>
-                            <!-- Method -->
-                            <TextBlock Text="Method" FontSize="9" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,2"/>
-                            <ComboBox ItemsSource="{Binding MethodOptions}"
-                                      SelectedItem="{Binding Config.Method}" Margin="0,0,0,6" Height="26" FontSize="11"/>
-
-                            <!-- Load Cell -->
-                            <TextBlock Text="Load Cell" FontSize="9" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,2"/>
-                            <ComboBox ItemsSource="{Binding LoadCellOptions}"
-                                      SelectedItem="{Binding Config.LoadCellType}" Margin="0,0,0,6" Height="26" FontSize="11"/>
-
-                            <!-- Du Noüy Ring parameters -->
-                            <StackPanel>
-                                <StackPanel.Style>
-                                    <Style TargetType="StackPanel">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Config.Method}" Value="Wilhelmy Plate">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </StackPanel.Style>
-                                <TextBlock Text="Ring Radius (mm)" FontSize="9" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,2"/>
-                                <TextBox Text="{Binding Config.RingRadius, UpdateSourceTrigger=PropertyChanged}"
-                                         FontSize="11" Padding="4,2" Margin="0,0,0,4"
-                                         Background="#2A2A3E" Foreground="White"
-                                         BorderBrush="{StaticResource BorderBrush}" CaretBrush="White"/>
-                                <TextBlock Text="Wire Radius (mm)" FontSize="9" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,2"/>
-                                <TextBox Text="{Binding Config.WireRadius, UpdateSourceTrigger=PropertyChanged}"
-                                         FontSize="11" Padding="4,2" Margin="0,0,0,4"
-                                         Background="#2A2A3E" Foreground="White"
-                                         BorderBrush="{StaticResource BorderBrush}" CaretBrush="White"/>
-                                <TextBlock Text="Ring Material" FontSize="9" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,2"/>
-                                <TextBox Text="{Binding Config.RingMaterial, UpdateSourceTrigger=PropertyChanged}"
-                                         FontSize="11" Padding="4,2" Margin="0,0,0,4"
-                                         Background="#2A2A3E" Foreground="White"
-                                         BorderBrush="{StaticResource BorderBrush}" CaretBrush="White"/>
-                            </StackPanel>
-
-                            <!-- Wilhelmy Plate parameters -->
-                            <StackPanel>
-                                <StackPanel.Style>
-                                    <Style TargetType="StackPanel">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Config.Method}" Value="Wilhelmy Plate">
-                                                <Setter Property="Visibility" Value="Visible"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </StackPanel.Style>
-                                <TextBlock Text="Plate Width (mm)" FontSize="9" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,2"/>
-                                <TextBox Text="{Binding Config.PlateWidth, UpdateSourceTrigger=PropertyChanged}"
-                                         FontSize="11" Padding="4,2" Margin="0,0,0,4"
-                                         Background="#2A2A3E" Foreground="White"
-                                         BorderBrush="{StaticResource BorderBrush}" CaretBrush="White"/>
-                                <TextBlock Text="Plate Thickness (mm)" FontSize="9" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,2"/>
-                                <TextBox Text="{Binding Config.PlateThickness, UpdateSourceTrigger=PropertyChanged}"
-                                         FontSize="11" Padding="4,2" Margin="0,0,0,4"
-                                         Background="#2A2A3E" Foreground="White"
-                                         BorderBrush="{StaticResource BorderBrush}" CaretBrush="White"/>
-                                <TextBlock Text="Plate Material" FontSize="9" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,2"/>
-                                <TextBox Text="{Binding Config.PlateMaterial, UpdateSourceTrigger=PropertyChanged}"
-                                         FontSize="11" Padding="4,2" Margin="0,0,0,4"
-                                         Background="#2A2A3E" Foreground="White"
-                                         BorderBrush="{StaticResource BorderBrush}" CaretBrush="White"/>
-                            </StackPanel>
-
-                            <!-- Correction Factor -->
-                            <TextBlock Text="Correction Factor" FontSize="9" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,2"/>
-                            <TextBox Text="{Binding Config.CorrectionFactor, UpdateSourceTrigger=PropertyChanged}"
-                                     FontSize="11" Padding="4,2" Margin="0,0,0,4"
-                                     Background="#2A2A3E" Foreground="White"
-                                     BorderBrush="{StaticResource BorderBrush}" CaretBrush="White"/>
-
-                            <!-- Sample Info -->
-                            <TextBlock Text="Liquid / Sample" FontSize="9" Foreground="{StaticResource TextDimBrush}" Margin="0,2,0,2"/>
-                            <TextBox Text="{Binding Config.LiquidName, UpdateSourceTrigger=PropertyChanged}"
-                                     FontSize="11" Padding="4,2" Margin="0,0,0,4"
-                                     Background="#2A2A3E" Foreground="White"
-                                     BorderBrush="{StaticResource BorderBrush}" CaretBrush="White"/>
-
-                            <Grid Margin="0,0,0,4">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Margin="0,0,3,0">
-                                    <TextBlock Text="Temp (°C)" FontSize="9" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,2"/>
-                                    <TextBox Text="{Binding Config.Temperature, UpdateSourceTrigger=PropertyChanged}"
-                                             FontSize="11" Padding="4,2"
-                                             Background="#2A2A3E" Foreground="White"
-                                             BorderBrush="{StaticResource BorderBrush}" CaretBrush="White"/>
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Margin="3,0,0,0">
-                                    <TextBlock Text="Unit" FontSize="9" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,2"/>
-                                    <ComboBox ItemsSource="{Binding UnitOptions}"
-                                              SelectedItem="{Binding Config.Unit}" Height="26" FontSize="11"/>
-                                </StackPanel>
-                            </Grid>
-
-                            <TextBlock Text="Sample ID" FontSize="9" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,2"/>
-                            <TextBox Text="{Binding Config.SampleId, UpdateSourceTrigger=PropertyChanged}"
-                                     FontSize="11" Padding="4,2" Margin="0,0,0,4"
-                                     Background="#2A2A3E" Foreground="White"
-                                     BorderBrush="{StaticResource BorderBrush}" CaretBrush="White"/>
-
-                            <TextBlock Text="Operator" FontSize="9" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,2"/>
-                            <TextBox Text="{Binding Config.OperatorName, UpdateSourceTrigger=PropertyChanged}"
-                                     FontSize="11" Padding="4,2" Margin="0,0,0,4"
-                                     Background="#2A2A3E" Foreground="White"
-                                     BorderBrush="{StaticResource BorderBrush}" CaretBrush="White"/>
-
-                            <TextBlock Text="Notes" FontSize="9" Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,2"/>
-                            <TextBox Text="{Binding Config.Notes, UpdateSourceTrigger=PropertyChanged}"
-                                     FontSize="11" Padding="4,2" TextWrapping="Wrap"
-                                     MinHeight="36" AcceptsReturn="True"
-                                     Background="#2A2A3E" Foreground="White"
-                                     BorderBrush="{StaticResource BorderBrush}" CaretBrush="White"/>
                         </StackPanel>
                     </Border>
 
@@ -619,8 +506,9 @@
                           Margin="0,0,0,10">
                     <DataGrid.ContextMenu>
                         <ContextMenu>
-                            <MenuItem Header="✓ Toggle Outlier (Mark/Unmark)" 
-                                      Command="{Binding ToggleOutlierCommand}"/>
+                            <MenuItem Header="✓ Toggle Outlier (Mark/Unmark)"
+                                      Command="{Binding ToggleOutlierCommand}"
+                                      Style="{StaticResource CtxMenuItem}"/>
                         </ContextMenu>
                     </DataGrid.ContextMenu>
                     <DataGrid.ColumnHeaderStyle>
@@ -719,5 +607,6 @@
                 </StackPanel>
             </Grid>
         </Border>
+        </Grid>
     </Grid>
 </Window>

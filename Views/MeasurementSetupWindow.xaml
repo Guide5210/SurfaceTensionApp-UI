@@ -1,0 +1,220 @@
+<Window x:Class="SurfaceTensionApp.Views.MeasurementSetupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Measurement Setup"
+        Width="480" Height="620"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="#1E1E2E"
+        FontFamily="Inter">
+
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#E0E0E0"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#808098"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Margin" Value="0,0,0,3"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#2A2A3E"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#3A3A52"/>
+            <Setter Property="CaretBrush" Value="White"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="#2A2A3E"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#3A3A52"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="20,16,20,8">
+            <StackPanel>
+                <!-- Section: Method & Load Cell -->
+                <TextBlock Text="METHOD" FontSize="10" FontWeight="Bold" Foreground="#4A9EFF" Margin="0,0,0,8"/>
+
+                <TextBlock Text="Measurement Method" Style="{StaticResource FieldLabel}"/>
+                <ComboBox x:Name="MethodCombo" ItemsSource="{Binding MethodOptions}"
+                          SelectedItem="{Binding Config.Method}" Height="28"/>
+
+                <TextBlock Text="Load Cell" Style="{StaticResource FieldLabel}"/>
+                <ComboBox ItemsSource="{Binding LoadCellOptions}"
+                          SelectedItem="{Binding Config.LoadCellType}" Height="28"/>
+
+                <!-- Section: Du Noüy Ring Parameters -->
+                <StackPanel x:Name="RingPanel">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Config.Method}" Value="Wilhelmy Plate">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+
+                    <TextBlock Text="DU NOÜY RING" FontSize="10" FontWeight="Bold"
+                               Foreground="#4A9EFF" Margin="0,8,0,8"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Ring Radius (mm)" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding Config.RingRadius, TargetNullValue='', UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Wire Radius (mm)" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding Config.WireRadius, TargetNullValue='', UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="Ring Material" Style="{StaticResource FieldLabel}"/>
+                    <TextBox Text="{Binding Config.RingMaterial, UpdateSourceTrigger=PropertyChanged}"/>
+                </StackPanel>
+
+                <!-- Section: Wilhelmy Plate Parameters -->
+                <StackPanel x:Name="PlatePanel">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Config.Method}" Value="Wilhelmy Plate">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+
+                    <TextBlock Text="WILHELMY PLATE" FontSize="10" FontWeight="Bold"
+                               Foreground="#4A9EFF" Margin="0,8,0,8"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Plate Width (mm)" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding Config.PlateWidth, TargetNullValue='', UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Plate Thickness (mm)" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding Config.PlateThickness, TargetNullValue='', UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="Plate Material" Style="{StaticResource FieldLabel}"/>
+                    <TextBox Text="{Binding Config.PlateMaterial, UpdateSourceTrigger=PropertyChanged}"/>
+                </StackPanel>
+
+                <!-- Section: Calculation -->
+                <TextBlock Text="CALCULATION" FontSize="10" FontWeight="Bold"
+                           Foreground="#4A9EFF" Margin="0,8,0,8"/>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Correction Factor" Style="{StaticResource FieldLabel}"/>
+                        <TextBox Text="{Binding Config.CorrectionFactor, TargetNullValue='', UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Display Unit" Style="{StaticResource FieldLabel}"/>
+                        <ComboBox ItemsSource="{Binding UnitOptions}"
+                                  SelectedItem="{Binding Config.Unit}" Height="28"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Section: Sample Information -->
+                <TextBlock Text="SAMPLE INFORMATION" FontSize="10" FontWeight="Bold"
+                           Foreground="#4A9EFF" Margin="0,8,0,8"/>
+
+                <TextBlock Text="Liquid / Sample Name" Style="{StaticResource FieldLabel}"/>
+                <TextBox Text="{Binding Config.LiquidName, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Temperature (°C)" Style="{StaticResource FieldLabel}"/>
+                        <TextBox Text="{Binding Config.Temperature, TargetNullValue='', UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Sample ID" Style="{StaticResource FieldLabel}"/>
+                        <TextBox Text="{Binding Config.SampleId, UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Text="Operator" Style="{StaticResource FieldLabel}"/>
+                <TextBox Text="{Binding Config.OperatorName, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <TextBlock Text="Notes" Style="{StaticResource FieldLabel}"/>
+                <TextBox Text="{Binding Config.Notes, UpdateSourceTrigger=PropertyChanged}"
+                         TextWrapping="Wrap" MinHeight="50" AcceptsReturn="True"/>
+
+                <TextBlock Text="All fields are optional. Only filled fields will appear in the PDF report."
+                           FontSize="9" Foreground="#666680" Margin="0,4,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Bottom button bar -->
+        <Border Grid.Row="1" BorderThickness="0,1,0,0" BorderBrush="#3A3A52"
+                Background="#252538" Padding="20,12">
+            <Button Content="Close" Width="100" Height="32" HorizontalAlignment="Right"
+                    Click="OnCloseClick">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Background" Value="#4A9EFF"/>
+                        <Setter Property="Foreground" Value="White"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                        <Setter Property="FontSize" Value="13"/>
+                        <Setter Property="FontWeight" Value="SemiBold"/>
+                        <Setter Property="Cursor" Value="Hand"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="border" Background="{TemplateBinding Background}"
+                                            CornerRadius="4" Padding="12,6">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="border" Property="Background" Value="#3A7EDC"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Button.Style>
+            </Button>
+        </Border>
+    </Grid>
+</Window>

@@ -474,6 +474,19 @@ public partial class MainWindow : Window
         _suppressSave = false;
     }
 
+    // ═══════════════════════════════════════════════════════
+    // Menu — Measurement Setup Dialog
+    // ═══════════════════════════════════════════════════════
+    private void OnMeasurementSetupClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new MeasurementSetupWindow
+        {
+            Owner = this,
+            DataContext = _vm
+        };
+        dialog.ShowDialog();
+    }
+
     private void OnGraphHome(object sender, RoutedEventArgs e)
     { SaveViewState(); PlotControl.Plot.Axes.AutoScale(); PlotControl.Refresh(); SaveViewState(); }
 
