@@ -18,7 +18,10 @@ public static class PdfReportService
         string outputDir,
         byte[]? graphImage = null,
         string? title = null,
-        string? notes = null)
+        string? notes = null,
+        MeasurementConfig? config = null,
+        bool spikeFilterEnabled = false,
+        double? spikeThreshold = null)
     {
         Directory.CreateDirectory(outputDir);
         string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
@@ -31,8 +34,8 @@ public static class PdfReportService
                 page.Size(PageSizes.A4);
                 page.Margin(1.5f, Unit.Centimetre);
                 page.DefaultTextStyle(x => x.FontSize(10));
-                page.Header().Element(c => ComposeHeader(c, title));
-                page.Content().Element(c => ComposeContent(c, allData, graphImage, notes));
+                page.Header().Element(c => ComposeHeader(c, title, config));
+                page.Content().Element(c => ComposeContent(c, allData, graphImage, notes, config, spikeFilterEnabled, spikeThreshold));
                 page.Footer().Element(ComposeFooter);
             });
         }).GeneratePdf(path);
@@ -40,8 +43,9 @@ public static class PdfReportService
         return path;
     }
 
-    private static void ComposeHeader(IContainer container, string? title)
+    private static void ComposeHeader(IContainer container, string? title, MeasurementConfig? config)
     {
+        string method = config?.Method ?? "Du Noüy Ring";
         container.Column(col =>
         {
             col.Item().BorderBottom(2).BorderColor("#4A9EFF").PaddingBottom(8).Row(row =>
@@ -50,7 +54,7 @@ public static class PdfReportService
                 {
                     c.Item().Text(title ?? "Surface Tension Measurement Report")
                         .FontSize(18).Bold().FontColor("#1A1A2E");
-                    c.Item().Text("Du Nouy Ring Method - Automated Analysis")
+                    c.Item().Text($"{method} Method - Automated Analysis")
                         .FontSize(10).FontColor("#666666");
                     c.Item().Text($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}")
                         .FontSize(8).FontColor("#999999");
@@ -59,22 +63,104 @@ public static class PdfReportService
         });
     }
 
-    private static void ComposeContent(IContainer container, Dictionary<string, SpeedGroup> allData, byte[]? graphImage, string? notes)
+    private static void ComposeContent(IContainer container, Dictionary<string, SpeedGroup> allData,
+        byte[]? graphImage, string? notes, MeasurementConfig? config, bool spikeFilterEnabled,
+        double? spikeThreshold)
     {
         container.PaddingVertical(10).Column(col =>
         {
+            int sec = 1;
+
+            // ── Measurement Parameters (only show fields the user filled in) ──
+            if (config != null)
+            {
+                var rows = new List<string[]>();
+                rows.Add(new[] { "Method", config.Method });
+                rows.Add(new[] { "Load Cell", config.LoadCellType });
+
+                if (config.Method == "Wilhelmy Plate")
+                {
+                    if (config.PlateWidth.HasValue)
+                        rows.Add(new[] { "Plate Width", $"{config.PlateWidth.Value} mm" });
+                    if (config.PlateThickness.HasValue)
+                        rows.Add(new[] { "Plate Thickness", $"{config.PlateThickness.Value} mm" });
+                    if (!string.IsNullOrWhiteSpace(config.PlateMaterial))
+                        rows.Add(new[] { "Plate Material", config.PlateMaterial });
+                    if (config.WettedLengthMm.HasValue)
+                        rows.Add(new[] { "Wetted Perimeter", $"{config.WettedLengthMm.Value:F3} mm" });
+                }
+                else
+                {
+                    if (config.RingRadius.HasValue)
+                        rows.Add(new[] { "Ring Mean Radius (R)", $"{config.RingRadius.Value} mm" });
+                    if (config.WireRadius.HasValue)
+                        rows.Add(new[] { "Wire Radius (r)", $"{config.WireRadius.Value} mm" });
+                    if (!string.IsNullOrWhiteSpace(config.RingMaterial))
+                        rows.Add(new[] { "Ring Material", config.RingMaterial });
+                    if (config.WettedLengthMm.HasValue)
+                        rows.Add(new[] { "Wetted Length (4piR)", $"{config.WettedLengthMm.Value:F3} mm" });
+                }
+
+                if (config.CorrectionFactor.HasValue)
+                    rows.Add(new[] { "Correction Factor", $"{config.CorrectionFactor.Value}" });
+                if (config.CanCalculate)
+                    rows.Add(new[] { "Formula", config.FormulaDescription });
+                rows.Add(new[] { "Display Unit", config.Unit });
+                if (!string.IsNullOrWhiteSpace(config.LiquidName))
+                    rows.Add(new[] { "Liquid / Sample", config.LiquidName });
+                if (config.Temperature.HasValue)
+                    rows.Add(new[] { "Temperature", $"{config.Temperature.Value} °C" });
+                if (!string.IsNullOrWhiteSpace(config.SampleId))
+                    rows.Add(new[] { "Sample ID", config.SampleId });
+                if (!string.IsNullOrWhiteSpace(config.OperatorName))
+                    rows.Add(new[] { "Operator", config.OperatorName });
+
+                // Only show section if there's something beyond just method + load cell
+                if (rows.Count > 2)
+                {
+                    col.Item().Text($"{sec}. Measurement Parameters").FontSize(14).Bold().FontColor("#1A1A2E");
+                    col.Item().PaddingVertical(4);
+
+                    col.Item().Table(table =>
+                    {
+                        table.ColumnsDefinition(columns =>
+                        {
+                            columns.RelativeColumn(3f);
+                            columns.RelativeColumn(3f);
+                        });
+
+                        var labelStyle = TextStyle.Default.FontSize(9).Bold();
+                        var valStyle = TextStyle.Default.FontSize(9);
+
+                        bool alt = false;
+                        foreach (var r in rows)
+                        {
+                            var bg = alt ? "#F8F9FA" : "#FFFFFF";
+                            alt = !alt;
+                            table.Cell().Background(bg).Padding(4).Text(r[0]).Style(labelStyle);
+                            table.Cell().Background(bg).Padding(4).Text(r[1]).Style(valStyle);
+                        }
+                    });
+                    col.Item().PaddingVertical(8);
+                    sec++;
+                }
+            }
+
             // ── Notes ──
-            if (!string.IsNullOrWhiteSpace(notes))
+            string combinedNotes = "";
+            if (!string.IsNullOrWhiteSpace(notes)) combinedNotes = notes;
+            if (config != null && !string.IsNullOrWhiteSpace(config.Notes))
+                combinedNotes = string.IsNullOrEmpty(combinedNotes) ? config.Notes : combinedNotes + "\n" + config.Notes;
+
+            if (!string.IsNullOrWhiteSpace(combinedNotes))
             {
                 col.Item().Background("#F0F4FF").Padding(10).Column(nc =>
                 {
                     nc.Item().Text("Notes").Bold().FontSize(10);
-                    nc.Item().Text(notes).FontSize(9);
+                    nc.Item().Text(combinedNotes).FontSize(9);
                 });
                 col.Item().PaddingVertical(8);
             }
-
-            int sec = 1;
 
             // ── Graph ──
             if (graphImage != null && graphImage.Length > 0)
@@ -92,7 +178,6 @@ public static class PdfReportService
             int totalClean = allData.Values.Sum(g => g.CleanPeaks.Count);
             int speedCount = allData.Count;
 
-            // Compute global stats
             var allCleanPeaks = allData.Values.SelectMany(g => g.CleanPeaks).ToList();
             double globalMean = allCleanPeaks.Count > 0 ? allCleanPeaks.Average() : 0;
             double globalStd = allCleanPeaks.Count > 1 ? Math.Sqrt(allCleanPeaks.Sum(v => (v - globalMean) * (v - globalMean)) / allCleanPeaks.Count) : 0;
@@ -101,8 +186,7 @@ public static class PdfReportService
             double globalRange = globalMax - globalMin;
             double globalRsd = globalMean != 0 ? globalStd / globalMean * 100 : 0;
 
-            // Confidence interval (95%, t-dist approximation)
-            double tValue = allCleanPeaks.Count >= 30 ? 1.96 : 2.0; // simplified
+            double tValue = allCleanPeaks.Count >= 30 ? 1.96 : 2.0;
             double se = allCleanPeaks.Count > 1 ? globalStd / Math.Sqrt(allCleanPeaks.Count) : 0;
             double ciLower = globalMean - tValue * se;
             double ciUpper = globalMean + tValue * se;
@@ -119,13 +203,56 @@ public static class PdfReportService
                     c.Item().Text($"Outliers rejected: {totalOutliers}").FontSize(10);
                     c.Item().Text($"Speed profiles tested: {speedCount}").FontSize(10);
                     c.Item().Text("Outlier method: Modified Z-score (MAD, threshold=3.5)").FontSize(9).FontColor("#666666");
+                    if (spikeFilterEnabled)
+                    {
+                        string thInfo = spikeThreshold.HasValue ? $"threshold={spikeThreshold.Value} N" : "auto-detect";
+                        c.Item().Text($"Spike filter: Enabled ({thInfo}, linear interpolation)").FontSize(9).FontColor("#666666");
+                    }
                 });
             });
             col.Item().PaddingVertical(8);
             sec++;
 
-            // ── Descriptive Statistics ──
-            col.Item().Text($"{sec}. Descriptive Statistics (All Valid Runs)").FontSize(14).Bold().FontColor("#1A1A2E");
+            // ── Surface Tension Results ──
+            if (config != null && config.CanCalculate && allCleanPeaks.Count > 0)
+            {
+                string unit = config.Unit;
+                double? stMean = config.CalculateSurfaceTension(globalMean);
+                double? stMin = config.CalculateSurfaceTension(globalMin);
+                double? stMax = config.CalculateSurfaceTension(globalMax);
+                double? stStd = config.CalculateSurfaceTension(globalStd);
+                double? stSe = config.CalculateSurfaceTension(se);
+                double? stCiLower = config.CalculateSurfaceTension(ciLower);
+                double? stCiUpper = config.CalculateSurfaceTension(ciUpper);
+
+                if (stMean.HasValue)
+                {
+                    col.Item().Text($"{sec}. Surface Tension Results").FontSize(14).Bold().FontColor("#1A1A2E");
+                    col.Item().PaddingVertical(4);
+
+                    col.Item().Background("#E8F5E9").Border(1).BorderColor("#4CAF50").Padding(12).Column(stc =>
+                    {
+                        stc.Item().Text($"Mean Surface Tension: {stMean.Value:F3} {unit}")
+                            .FontSize(14).Bold().FontColor("#2E7D32");
+                        stc.Item().PaddingVertical(4);
+                        if (stStd.HasValue) stc.Item().Text($"Standard Deviation: {stStd.Value:F3} {unit}").FontSize(10);
+                        if (stSe.HasValue) stc.Item().Text($"Standard Error: {stSe.Value:F3} {unit}").FontSize(10);
+                        if (stCiLower.HasValue && stCiUpper.HasValue)
+                            stc.Item().Text($"95% CI: [{stCiLower.Value:F3}, {stCiUpper.Value:F3}] {unit}").FontSize(10);
+                        if (stMin.HasValue && stMax.HasValue)
+                            stc.Item().Text($"Range: {stMin.Value:F3} - {stMax.Value:F3} {unit}").FontSize(10);
+                        stc.Item().PaddingVertical(4);
+                        if (config.Temperature.HasValue)
+                            stc.Item().Text($"Temperature: {config.Temperature.Value} °C").FontSize(9).FontColor("#555555");
+                        stc.Item().Text($"Calculation: {config.FormulaDescription}").FontSize(8).FontColor("#888888");
+                    });
+                    col.Item().PaddingVertical(8);
+                    sec++;
+                }
+            }
+
+            // ── Descriptive Statistics (Force) ──
+            col.Item().Text($"{sec}. Descriptive Statistics — Peak Force").FontSize(14).Bold().FontColor("#1A1A2E");
             col.Item().PaddingVertical(4);
 
             col.Item().Table(table =>
@@ -163,6 +290,9 @@ public static class PdfReportService
             sec++;
 
             // ── Per-Speed Statistics ──
+            bool hasST = config?.CanCalculate == true;
+            string stUnit = config?.Unit ?? "mN/m";
+
             col.Item().Text($"{sec}. Per-Speed Statistical Analysis").FontSize(14).Bold().FontColor("#1A1A2E");
             col.Item().PaddingVertical(4);
 
@@ -170,20 +300,23 @@ public static class PdfReportService
             {
                 table.ColumnsDefinition(columns =>
                 {
-                    columns.RelativeColumn(2.2f);
+                    columns.RelativeColumn(2f);
+                    columns.RelativeColumn(0.6f);
                     columns.RelativeColumn(0.8f);
+                    columns.RelativeColumn(1.6f);
+                    columns.RelativeColumn(1.6f);
                     columns.RelativeColumn(1f);
-                    columns.RelativeColumn(1.8f);
-                    columns.RelativeColumn(1.8f);
-                    columns.RelativeColumn(1.2f);
-                    columns.RelativeColumn(1.8f);
-                    columns.RelativeColumn(0.8f);
+                    if (hasST) columns.RelativeColumn(1.6f);
+                    columns.RelativeColumn(0.6f);
                 });
 
                 var hs = TextStyle.Default.FontSize(8).Bold().FontColor("#FFFFFF");
                 table.Header(header =>
                 {
-                    foreach (var h in new[] { "Speed", "B", "Runs", "Avg (N)", "SD (N)", "RSD%", "95% CI (N)", "Out" })
+                    var headers = new List<string> { "Speed", "B", "Runs", "Avg (N)", "SD (N)", "RSD%" };
+                    if (hasST) headers.Add($"ST ({stUnit})");
+                    headers.Add("Out");
+                    foreach (var h in headers)
                         header.Cell().Background("#2D3748").Padding(4).Text(h).Style(hs);
                 });
 
@@ -192,9 +325,6 @@ public static class PdfReportService
                 {
                     var bg = alt ? "#F8F9FA" : "#FFFFFF";
                     alt = !alt;
-                    double gSe = g.CleanPeaks.Count > 1 ? g.Std / Math.Sqrt(g.CleanPeaks.Count) : 0;
-                    double gT = g.CleanPeaks.Count >= 30 ? 1.96 : 2.0;
-                    string ci = $"+/-{(gT * gSe):F6}";
 
                     table.Cell().Background(bg).Padding(3).Text(g.BaseName).FontSize(8);
                     table.Cell().Background(bg).Padding(3).Text(g.Batch.ToString()).FontSize(8);
@@ -202,7 +332,11 @@ public static class PdfReportService
                     table.Cell().Background(bg).Padding(3).Text(g.Avg.ToString("F6")).FontSize(8);
                     table.Cell().Background(bg).Padding(3).Text(g.Std.ToString("F6")).FontSize(8);
                     table.Cell().Background(bg).Padding(3).Text(g.Rsd.ToString("F2") + "%").FontSize(8);
-                    table.Cell().Background(bg).Padding(3).Text(ci).FontSize(8);
+                    if (hasST)
+                    {
+                        double? st = config!.CalculateSurfaceTension(g.Avg);
+                        table.Cell().Background(bg).Padding(3).Text(st?.ToString("F3") ?? "—").FontSize(8);
+                    }
                     table.Cell().Background(bg).Padding(3).Text(g.OutlierIndices.Count.ToString()).FontSize(8);
                 }
             });
@@ -217,18 +351,22 @@ public static class PdfReportService
             {
                 table.ColumnsDefinition(columns =>
                 {
-                    columns.RelativeColumn(2.5f);
+                    columns.RelativeColumn(2.2f);
+                    columns.RelativeColumn(0.8f);
+                    columns.RelativeColumn(0.8f);
+                    columns.RelativeColumn(1.8f);
+                    if (hasST) columns.RelativeColumn(1.5f);
                     columns.RelativeColumn(1f);
-                    columns.RelativeColumn(1f);
-                    columns.RelativeColumn(2f);
                     columns.RelativeColumn(1.2f);
-                    columns.RelativeColumn(1.5f);
                 });
 
                 var hs = TextStyle.Default.FontSize(9).Bold().FontColor("#FFFFFF");
+                var headers = new List<string> { "Speed", "B", "#", "Peak (N)" };
+                if (hasST) headers.Add($"ST ({stUnit})");
+                headers.AddRange(new[] { "Points", "Status" });
                 table.Header(header =>
                 {
-                    foreach (var h in new[] { "Speed", "B", "#", "Peak (N)", "Points", "Status" })
+                    foreach (var h in headers)
                         header.Cell().Background("#2D3748").Padding(5).Text(h).Style(hs);
                 });
 
@@ -245,6 +383,11 @@ public static class PdfReportService
                         table.Cell().Background(bg).Padding(3).Text(g.Batch.ToString()).FontSize(8);
                         table.Cell().Background(bg).Padding(3).Text((i + 1).ToString()).FontSize(8);
                         table.Cell().Background(bg).Padding(3).Text(g.PeakForces[i].ToString("F6")).FontSize(8);
+                        if (hasST)
+                        {
+                            double? st = config!.CalculateSurfaceTension(g.PeakForces[i]);
+                            table.Cell().Background(bg).Padding(3).Text(st?.ToString("F3") ?? "—").FontSize(8);
+                        }
                         table.Cell().Background(bg).Padding(3).Text(run.PointCount.ToString()).FontSize(8);
                         table.Cell().Background(bg).Padding(3)
                             .Text(isOutlier ? "OUTLIER" : "OK").FontSize(8)
@@ -261,10 +404,36 @@ public static class PdfReportService
 
             col.Item().Background("#FFFBEB").Padding(10).Column(oc =>
             {
+                oc.Item().Text("Peak Outlier Rejection").FontSize(10).Bold();
                 oc.Item().Text("Method: Modified Z-score with Median Absolute Deviation (MAD)").FontSize(9).Bold();
                 oc.Item().Text("Formula: Modified Z = 0.6745 x (x - median) / MAD").FontSize(9);
                 oc.Item().Text("Threshold: |Modified Z| > 3.5 = outlier").FontSize(9);
                 oc.Item().Text("MAD floor: 2% of |median| to prevent over-rejection on tight data").FontSize(9);
+                oc.Item().PaddingVertical(4);
+
+                if (spikeFilterEnabled)
+                {
+                    string thresholdDesc = spikeThreshold.HasValue
+                        ? $"{spikeThreshold.Value} N (user-specified)"
+                        : "Auto-detect (Q3 + 2.5 x IQR)";
+                    oc.Item().Text("Spike Noise Filter (Time-Series Data)").FontSize(10).Bold();
+                    oc.Item().Text("Applied: Yes — spikes replaced with interpolated values").FontSize(9).FontColor("#2E7D32");
+                    oc.Item().Text("Method: Threshold-based detection + linear interpolation").FontSize(9);
+                    oc.Item().Text($"Threshold: {thresholdDesc}").FontSize(9);
+                    oc.Item().Text("Algorithm:").FontSize(9).Bold();
+                    oc.Item().Text("  1. Points where force > threshold are marked as spikes").FontSize(8);
+                    oc.Item().Text("  2. Consecutive spike points are grouped into regions").FontSize(8);
+                    oc.Item().Text("  3. Each spike region is replaced by linear interpolation").FontSize(8);
+                    oc.Item().Text("     between the nearest clean neighbors on each side").FontSize(8);
+                    oc.Item().Text("  4. Output has the same number of points — no data removed").FontSize(8);
+                    oc.Item().PaddingVertical(2);
+                    oc.Item().Text("Note: Raw data is always preserved. Filter is applied at render time only.")
+                        .FontSize(8).FontColor("#888888");
+                }
+                else
+                {
+                    oc.Item().Text("Spike Noise Filter: Not applied").FontSize(9).FontColor("#888888");
+                }
             });
             col.Item().PaddingVertical(4);
 
@@ -291,9 +460,16 @@ public static class PdfReportService
             col.Item().Text($"{sec}. Instrument Information").FontSize(14).Bold().FontColor("#1A1A2E");
             col.Item().PaddingVertical(4);
 
+            string loadCellDesc = config?.LoadCellType == "30g"
+                ? "Type: HX711 ADC + 30g Aluminum Alloy Load Cell"
+                : "Type: HX711 ADC + 100g Aluminum Alloy Load Cell";
+            string loadCellRange = config?.LoadCellType == "30g"
+                ? "Range: 0 - 30 g | Rated output: 0.6 +/- 0.15 mV/V"
+                : "Range: 0 - 100 g | Rated output: 0.6 +/- 0.15 mV/V";
+
             col.Item().Background("#F8F9FA").Padding(10).Column(ic =>
             {
-                ic.Item().Text("Instrument: Du Nouy Ring Surface Tension Tester v7.3").FontSize(9);
+                ic.Item().Text($"Instrument: {config?.Method ?? "Du Noüy Ring"} Surface Tension Tester v7.3").FontSize(9);
                 ic.Item().Text("Controller: Arduino Mega 2560").FontSize(9);
                 ic.Item().Text("Motor Driver: TMC2209 Stepper Driver").FontSize(9);
                 ic.Item().Text("Sampling: Position-based, 5 um intervals").FontSize(9);
@@ -301,8 +477,8 @@ public static class PdfReportService
                 ic.Item().PaddingVertical(4);
 
                 ic.Item().Text("Load Cell Specifications:").FontSize(9).Bold();
-                ic.Item().Text("  Type: HX711 ADC + 100g Aluminum Alloy Load Cell").FontSize(8);
-                ic.Item().Text("  Range: 0 - 100 g | Rated output: 0.6 +/- 0.15 mV/V").FontSize(8);
+                ic.Item().Text($"  {loadCellDesc}").FontSize(8);
+                ic.Item().Text($"  {loadCellRange}").FontSize(8);
                 ic.Item().Text("  Non-linearity: 0.03% F.S (= +/- 0.03 g)").FontSize(8);
                 ic.Item().Text("  Hysteresis: 0.03% F.S | Repeatability: 0.03% F.S").FontSize(8);
                 ic.Item().Text("  Creep: 0.03% F.S / 3 min").FontSize(8);

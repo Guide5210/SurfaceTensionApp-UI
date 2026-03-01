@@ -189,3 +189,118 @@ public static class OutlierRejection
         return n % 2 == 1 ? sorted[n / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2.0;
     }
 }
+
+/// <summary>
+/// Threshold-based spike filter with linear interpolation.
+/// Points where force exceeds the user-specified threshold are replaced
+/// with linearly interpolated values from the nearest clean neighbors.
+/// The output arrays are the same length as the input — no points are
+/// removed, preserving the original graph shape.
+/// </summary>
+public static class SpikeFilter
+{
+    /// <summary>
+    /// Replace spike points with linearly interpolated values.
+    /// </summary>
+    /// <param name="times">Time values.</param>
+    /// <param name="forces">Force values.</param>
+    /// <param name="maxForce">Force threshold — points with force &gt; maxForce are spikes.
+    /// If null, auto-detects using IQR method (Q3 + 2.5 * IQR).</param>
+    /// <returns>Same-length arrays with spikes replaced by interpolation, plus spike count.</returns>
+    public static (double[] times, double[] forces, int spikeCount) Apply(
+        double[] times, double[] forces, double? maxForce = null)
+    {
+        int n = forces.Length;
+        if (n < 3)
+            return (times, forces, 0);
+
+        // Determine threshold
+        double upperThreshold;
+        if (maxForce.HasValue)
+        {
+            upperThreshold = maxForce.Value;
+        }
+        else
+        {
+            // Auto-detect using IQR
+            double[] sorted = new double[n];
+            Array.Copy(forces, sorted, n);
+            Array.Sort(sorted);
+            double q1 = sorted[n / 4];
+            double q3 = sorted[3 * n / 4];
+            double iqr = q3 - q1;
+            upperThreshold = q3 + 2.5 * iqr;
+        }
+
+        // Mark spike points
+        bool[] isSpike = new bool[n];
+        int spikeCount = 0;
+        for (int i = 0; i < n; i++)
+        {
+            if (forces[i] > upperThreshold)
+            {
+                isSpike[i] = true;
+                spikeCount++;
+            }
+        }
+
+        if (spikeCount == 0)
+            return (times, forces, 0);
+
+        // Replace spikes with linear interpolation
+        double[] filtered = new double[n];
+        Array.Copy(forces, filtered, n);
+
+        int idx = 0;
+        while (idx < n)
+        {
+            if (!isSpike[idx]) { idx++; continue; }
+
+            // Find the extent of this spike region
+            int regionStart = idx;
+            while (idx < n && isSpike[idx]) idx++;
+            int regionEnd = idx - 1;
+
+            // Boundary clean points for interpolation
+            int left = regionStart - 1;
+            int right = regionEnd + 1;
+
+            if (left < 0 && right >= n)
+            {
+                // Entire signal is above threshold — can't interpolate
+                continue;
+            }
+
+            if (left < 0)
+            {
+                // Spike at the very beginning — extend right boundary value
+                for (int j = regionStart; j <= regionEnd; j++)
+                    filtered[j] = forces[right];
+                continue;
+            }
+
+            if (right >= n)
+            {
+                // Spike at the very end — extend left boundary value
+                for (int j = regionStart; j <= regionEnd; j++)
+                    filtered[j] = forces[left];
+                continue;
+            }
+
+            // Linear interpolation between left and right boundary
+            double tLeft = times[left];
+            double fLeft = forces[left];
+            double tRight = times[right];
+            double fRight = forces[right];
+            double dt = tRight - tLeft;
+
+            for (int j = regionStart; j <= regionEnd; j++)
+            {
+                double t = dt > 1e-12 ? (times[j] - tLeft) / dt : 0.5;
+                filtered[j] = fLeft + t * (fRight - fLeft);
+            }
+        }
+
+        return (times, filtered, spikeCount);
+    }
+}

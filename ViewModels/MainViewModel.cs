@@ -88,6 +88,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
     };
 
     // ══════════════════════════════════════════════════════════════
+    // Measurement Configuration
+    // ══════════════════════════════════════════════════════════════
+    public MeasurementConfig Config { get; } = new();
+
+    public ObservableCollection<string> MethodOptions { get; } = new() { "Du Noüy Ring", "Wilhelmy Plate" };
+    public ObservableCollection<string> LoadCellOptions { get; } = new() { "100g", "30g" };
+    public ObservableCollection<string> UnitOptions { get; } = new() { "mN/m", "dyn/cm" };
+
+    // ══════════════════════════════════════════════════════════════
     // Results & Statistics
     // ══════════════════════════════════════════════════════════════
     public ObservableCollection<RunResultRow> RunResults { get; } = new();
@@ -102,10 +111,36 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly object _logLock = new();
 
     // ══════════════════════════════════════════════════════════════
+    // Spike filter toggle + threshold
+    // ══════════════════════════════════════════════════════════════
+    [ObservableProperty] private bool _isSpikeFilterEnabled;
+    [ObservableProperty] private string _spikeThresholdText = "";
+
+    /// <summary>
+    /// Parsed threshold value (null = auto-detect using IQR).
+    /// </summary>
+    public double? SpikeThreshold =>
+        double.TryParse(SpikeThresholdText, out double v) && v > 0 ? v : null;
+
+    partial void OnIsSpikeFilterEnabledChanged(bool value)
+    {
+        SpikeFilterToggled?.Invoke();
+        string thresholdInfo = SpikeThreshold.HasValue ? $", threshold={SpikeThreshold.Value} N" : ", auto-detect";
+        AppendLog(value ? $"✓ Spike filter ON{thresholdInfo}" : "✓ Spike filter OFF");
+    }
+
+    partial void OnSpikeThresholdTextChanged(string value)
+    {
+        if (IsSpikeFilterEnabled)
+            SpikeFilterToggled?.Invoke();
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // Graph data (accessed by code-behind to update ScottPlot)
     // ══════════════════════════════════════════════════════════════
     public event Action? GraphDataUpdated;
     public event Action? GraphRunCompleted;
+    public event Action? SpikeFilterToggled;
 
     // ══════════════════════════════════════════════════════════════
     // Internal state
@@ -835,7 +870,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
             string dir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
                 "SurfaceTensionApp");
-            string path = PdfReportService.GenerateReport(_allData, dir, graphImage);
+            string path = PdfReportService.GenerateReport(
+                _allData, dir, graphImage,
+                config: Config,
+                spikeFilterEnabled: IsSpikeFilterEnabled,
+                spikeThreshold: SpikeThreshold);
             AppendLog($"✓ PDF report saved: {path}");
             MessageBox.Show($"Report saved to:\n{path}", "PDF Report", MessageBoxButton.OK, MessageBoxImage.Information);
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });

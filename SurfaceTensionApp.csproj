@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <Page Include="**\*.xaml" Exclude="App.xaml" />
+    <None Remove="Views\MeasurementSetupWindow.xaml" />
     <Page Include="App.xaml" />
   </ItemGroup>
 

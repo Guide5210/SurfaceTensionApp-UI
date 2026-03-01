@@ -12,10 +12,12 @@ namespace SurfaceTensionApp.Views;
 public class RunPlotEntry
 {
     public int RunIndex { get; init; }
-    public ScottPlot.Plottables.Scatter Scatter { get; init; } = null!;
+    public ScottPlot.Plottables.Scatter Scatter { get; set; } = null!;
     public ScottPlot.Plottables.Marker? PeakMarker { get; set; }
     public ScottPlot.Color OrigColor { get; set; }
     public bool IsVisible { get; set; } = true;
+    public double[] RawTimes { get; init; } = Array.Empty<double>();
+    public double[] RawForces { get; init; } = Array.Empty<double>();
 }
 
 public partial class MainWindow : Window
@@ -55,6 +57,7 @@ public partial class MainWindow : Window
         _vm.GraphDataUpdated += () => _needsRender = true;
         _vm.GraphRunCompleted += OnGraphRunCompleted;
         _vm.GraphCleared += OnGraphCleared;
+        _vm.SpikeFilterToggled += OnSpikeFilterToggled;
         _vm.CaptureGraphImage = CaptureGraph;
         _vm.PropertyChanged += (_, e) =>
         {
@@ -100,6 +103,8 @@ public partial class MainWindow : Window
             var forces = _vm.LiveForces;
             if (times.Count < 2) return;
             if (_livePlot != null) PlotControl.Plot.Remove(_livePlot);
+
+            // Live data is always raw — filtering is post-run only
             _livePlot = PlotControl.Plot.Add.Scatter(times.ToArray(), forces.ToArray());
             _livePlot.Color = ScottPlot.Color.FromHex("#4A9EFF");
             _livePlot.LineWidth = 2;
@@ -136,20 +141,42 @@ public partial class MainWindow : Window
             {
                 if (_livePlot == null) return;
                 var color = RunColors[_colorIndex % RunColors.Length];
-                _livePlot.Color = color;
-                _livePlot.LineWidth = 1.5f;
 
-                ScottPlot.Plottables.Marker? peakMarker = null;
-                var times = _vm.LiveTimes;
-                var forces = _vm.LiveForces;
-                if (forces.Count > 0)
+                // Capture raw data before LiveTimes/LiveForces get cleared
+                double[] rawTimes = _vm.LiveTimes.ToArray();
+                double[] rawForces = _vm.LiveForces.ToArray();
+
+                // Build display data: apply post-run filter if enabled
+                double[] displayTimes, displayForces;
+                if (_vm.IsSpikeFilterEnabled)
                 {
-                    int peakIdx = 0; double peakVal = forces[0];
-                    for (int i = 1; i < forces.Count; i++)
-                        if (forces[i] > peakVal) { peakVal = forces[i]; peakIdx = i; }
-                    if (peakIdx < times.Count)
+                    var (ft, ff, _) = SpikeFilter.Apply(rawTimes, rawForces, _vm.SpikeThreshold);
+                    displayTimes = ft;
+                    displayForces = ff;
+                }
+                else
+                {
+                    displayTimes = rawTimes;
+                    displayForces = rawForces;
+                }
+
+                // Replace live plot with a proper completed-run scatter
+                PlotControl.Plot.Remove(_livePlot);
+                var scatter = PlotControl.Plot.Add.Scatter(displayTimes, displayForces);
+                scatter.Color = color;
+                scatter.LineWidth = 1.5f;
+                scatter.MarkerSize = 0;
+
+                // Find peak from display data
+                ScottPlot.Plottables.Marker? peakMarker = null;
+                if (displayForces.Length > 0)
+                {
+                    int peakIdx = 0; double peakVal = displayForces[0];
+                    for (int i = 1; i < displayForces.Length; i++)
+                        if (displayForces[i] > peakVal) { peakVal = displayForces[i]; peakIdx = i; }
+                    if (peakIdx < displayTimes.Length)
                     {
-                        peakMarker = PlotControl.Plot.Add.Marker(times[peakIdx], peakVal);
+                        peakMarker = PlotControl.Plot.Add.Marker(displayTimes[peakIdx], peakVal);
                         peakMarker.Color = color;
                         peakMarker.Size = 6;
                     }
@@ -159,9 +186,11 @@ public partial class MainWindow : Window
                 _runEntries.Add(new RunPlotEntry
                 {
                     RunIndex = idx + 1,
-                    Scatter = _livePlot,
+                    Scatter = scatter,
                     PeakMarker = peakMarker,
                     OrigColor = color,
+                    RawTimes = rawTimes,
+                    RawForces = rawForces,
                 });
 
                 // Link to latest RunResultRow
@@ -175,6 +204,71 @@ public partial class MainWindow : Window
 
                 _livePlot = null;
                 _colorIndex++;
+                PlotControl.Refresh();
+            }
+            catch { }
+        });
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // Spike Filter Toggle — rebuild all completed run plots
+    // ═══════════════════════════════════════════════════════
+    private void OnSpikeFilterToggled()
+    {
+        Dispatcher.InvokeAsync(() =>
+        {
+            try
+            {
+                bool filter = _vm.IsSpikeFilterEnabled;
+
+                foreach (var entry in _runEntries)
+                {
+                    if (entry.RawForces.Length == 0) continue;
+
+                    // Remove old scatter and peak marker
+                    PlotControl.Plot.Remove(entry.Scatter);
+                    if (entry.PeakMarker != null)
+                        PlotControl.Plot.Remove(entry.PeakMarker);
+
+                    // Rebuild with filtered or raw data (threshold + interpolation)
+                    double[] displayTimes, displayForces;
+                    if (filter)
+                    {
+                        var (ft, ff, _) = SpikeFilter.Apply(entry.RawTimes, entry.RawForces, _vm.SpikeThreshold);
+                        displayTimes = ft;
+                        displayForces = ff;
+                    }
+                    else
+                    {
+                        displayTimes = entry.RawTimes;
+                        displayForces = entry.RawForces;
+                    }
+
+                    var scatter = PlotControl.Plot.Add.Scatter(displayTimes, displayForces);
+                    scatter.Color = entry.OrigColor;
+                    scatter.LineWidth = 1.5f;
+                    scatter.MarkerSize = 0;
+                    scatter.IsVisible = entry.IsVisible;
+                    entry.Scatter = scatter;
+
+                    // Rebuild peak marker from display data
+                    if (displayForces.Length > 0)
+                    {
+                        int peakIdx = 0; double peakVal = displayForces[0];
+                        for (int i = 1; i < displayForces.Length; i++)
+                            if (displayForces[i] > peakVal) { peakVal = displayForces[i]; peakIdx = i; }
+
+                        var marker = PlotControl.Plot.Add.Marker(displayTimes[peakIdx], peakVal);
+                        marker.Color = entry.OrigColor;
+                        marker.Size = 6;
+                        marker.IsVisible = entry.IsVisible;
+                        entry.PeakMarker = marker;
+                    }
+                }
+
+                // Re-render live data too
+                _needsRender = true;
+                PlotControl.Plot.Axes.AutoScale();
                 PlotControl.Refresh();
             }
             catch { }
@@ -378,6 +472,19 @@ public partial class MainWindow : Window
         PlotControl.Plot.Axes.SetLimits(s.XMin, s.XMax, s.YMin, s.YMax);
         PlotControl.Refresh();
         _suppressSave = false;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // Menu — Measurement Setup Dialog
+    // ═══════════════════════════════════════════════════════
+    private void OnMeasurementSetupClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new MeasurementSetupWindow
+        {
+            Owner = this,
+            DataContext = _vm
+        };
+        dialog.ShowDialog();
     }
 
     private void OnGraphHome(object sender, RoutedEventArgs e)
