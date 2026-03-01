@@ -261,6 +261,9 @@
                 <Separator/>
                 <MenuItem Header="New Session" Command="{Binding NewSessionCommand}" Style="{StaticResource SubMenuItem}"/>
             </MenuItem>
+            <MenuItem Header="Tools">
+                <MenuItem Header="Calibration Wizard..." Click="OnCalibrationWizardClick" Style="{StaticResource SubMenuItem}"/>
+            </MenuItem>
             <MenuItem Header="Settings">
                 <MenuItem Header="Measurement Setup..." Click="OnMeasurementSetupClick" Style="{StaticResource SubMenuItem}"/>
             </MenuItem>

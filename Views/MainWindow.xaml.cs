@@ -487,6 +487,12 @@ public partial class MainWindow : Window
         dialog.ShowDialog();
     }
 
+    private void OnCalibrationWizardClick(object sender, RoutedEventArgs e)
+    {
+        var wizard = new CalibrationWizardWindow(_vm) { Owner = this };
+        wizard.ShowDialog();
+    }
+
     private void OnAboutClick(object sender, RoutedEventArgs e)
     {
         MessageBox.Show(
