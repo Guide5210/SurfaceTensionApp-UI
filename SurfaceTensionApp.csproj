@@ -7,14 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>SurfaceTensionApp</AssemblyName>
     <RootNamespace>SurfaceTensionApp</RootNamespace>
-    <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
-    <EnableDefaultPageItems>false</EnableDefaultPageItems>
   </PropertyGroup>
-
-  <ItemGroup>
-    <Page Include="**\*.xaml" Exclude="App.xaml" />
-    <Page Include="App.xaml" />
-  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
