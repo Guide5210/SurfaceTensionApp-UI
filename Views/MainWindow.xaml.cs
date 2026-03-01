@@ -487,6 +487,20 @@ public partial class MainWindow : Window
         dialog.ShowDialog();
     }
 
+    private void OnAboutClick(object sender, RoutedEventArgs e)
+    {
+        MessageBox.Show(
+            "Surface Tension Tester v7.3\n\n" +
+            "Du Noüy Ring / Wilhelmy Plate Method\n" +
+            "Automated Surface Tension Measurement\n\n" +
+            "Designed and developed by\n" +
+            "Soranan Suebsilpasakul\n\n" +
+            "School of Integrated Innovative Technology (SIITec)\n" +
+            "Department of Nanoscience and Nanotechnology\n" +
+            "King Mongkut's Institute of Technology Ladkrabang (KMITL)",
+            "About", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
     private void OnGraphHome(object sender, RoutedEventArgs e)
     { SaveViewState(); PlotControl.Plot.Axes.AutoScale(); PlotControl.Refresh(); SaveViewState(); }
 
