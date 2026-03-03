@@ -366,20 +366,28 @@
                                Foreground="{StaticResource TextDimBrush}" Margin="0,6,0,6"/>
                     <Border Background="{StaticResource BgBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,10">
                         <StackPanel>
-                            <Button Content="1: Ultra Fast (600 µm/s)" Style="{StaticResource DarkButton}" 
+                            <Button Content="1: Ultra Fast (600 µm/s)" Style="{StaticResource DarkButton}"
                                     Command="{Binding RunSpeedCommand}" CommandParameter="1" Margin="0,0,0,3"/>
-                            <Button Content="2: Fast Up (400 µm/s)" Style="{StaticResource DarkButton}"
+                            <Button Content="2: Fast Up (450 µm/s)" Style="{StaticResource DarkButton}"
                                     Command="{Binding RunSpeedCommand}" CommandParameter="2" Margin="0,0,0,3"/>
-                            <Button Content="3: V8 (133.5 µm/s)" Style="{StaticResource DarkButton}"
+                            <Button Content="3: Fast Down (150 µm/s)" Style="{StaticResource DarkButton}"
                                     Command="{Binding RunSpeedCommand}" CommandParameter="3" Margin="0,0,0,3"/>
-                            <Button Content="4: V6 (100.125 µm/s)" Style="{StaticResource DarkButton}"
+                            <Button Content="4: V8 (133.5 µm/s)" Style="{StaticResource DarkButton}"
                                     Command="{Binding RunSpeedCommand}" CommandParameter="4" Margin="0,0,0,3"/>
-                            <Button Content="5: V4 (66.75 µm/s)" Style="{StaticResource DarkButton}"
+                            <Button Content="5: V6 (100.125 µm/s)" Style="{StaticResource DarkButton}"
                                     Command="{Binding RunSpeedCommand}" CommandParameter="5" Margin="0,0,0,3"/>
-                            <Button Content="6: V2 (33.3375 µm/s)" Style="{StaticResource DarkButton}"
+                            <Button Content="6: V4 (66.75 µm/s)" Style="{StaticResource DarkButton}"
                                     Command="{Binding RunSpeedCommand}" CommandParameter="6" Margin="0,0,0,3"/>
-                            <Button Content="7: Measure F (18.75 µm/s)" Style="{StaticResource DarkButton}"
+                            <Button Content="7: V2 (33.3375 µm/s)" Style="{StaticResource DarkButton}"
                                     Command="{Binding RunSpeedCommand}" CommandParameter="7" Margin="0,0,0,3"/>
+                            <Button Content="8: Measure F (18.75 µm/s)" Style="{StaticResource DarkButton}"
+                                    Command="{Binding RunSpeedCommand}" CommandParameter="8" Margin="0,0,0,3"/>
+                            <Button Content="9: Measure M (7.50 µm/s)" Style="{StaticResource DarkButton}"
+                                    Command="{Binding RunSpeedCommand}" CommandParameter="9" Margin="0,0,0,3"/>
+                            <Button Content="B: Measure X (1.875 µm/s)" Style="{StaticResource DarkButton}"
+                                    Command="{Binding RunSpeedCommand}" CommandParameter="B" Margin="0,0,0,3"/>
+                            <Button Content="C: Measure Z (0.75 µm/s)" Style="{StaticResource DarkButton}"
+                                    Command="{Binding RunSpeedCommand}" CommandParameter="C" Margin="0,0,0,3"/>
                         </StackPanel>
                     </Border>
 
@@ -406,11 +414,11 @@
                         </StackPanel>
                     </Border>
 
-                    <Button Content="▶ Full Auto (140 runs)" Command="{Binding RunAutoSequenceCommand}"
+                    <Button Content="▶ Full Auto (240 runs)" Command="{Binding RunAutoSequenceCommand}"
                             Style="{StaticResource GreenButton}" FontWeight="Bold" 
                             FontSize="13" Padding="12,10" Margin="0,0,0,10"/>
 
-                    <TextBlock Text="UTILITIES" FontSize="10" FontWeight="Bold" 
+                    <TextBlock Text="UTILITIES" FontSize="10" FontWeight="Bold"
                                Foreground="{StaticResource TextDimBrush}" Margin="0,6,0,6"/>
                     <UniformGrid Columns="2" Margin="0,0,0,6">
                         <Button Content="Calibrate" Command="{Binding CalibrateCommand}"
@@ -422,8 +430,34 @@
                         <Button Content="Go Home" Command="{Binding GoHomeCommand}"
                                 Style="{StaticResource DarkButton}" Margin="3,0,0,3"/>
                     </UniformGrid>
-                    <Button Content="Monitor" Command="{Binding MonitorCommand}"
-                            Style="{StaticResource DarkButton}" Margin="0,0,0,10"/>
+                    <UniformGrid Columns="2" Margin="0,0,0,6">
+                        <Button Content="Monitor" Command="{Binding MonitorCommand}"
+                                Style="{StaticResource DarkButton}" Margin="0,0,3,3"/>
+                        <Button Content="System Info" Command="{Binding QuerySystemInfoCommand}"
+                                Style="{StaticResource DarkButton}" Margin="3,0,0,3"/>
+                    </UniformGrid>
+
+                    <TextBlock Text="LOAD CELL" FontSize="10" FontWeight="Bold"
+                               Foreground="{StaticResource TextDimBrush}" Margin="0,6,0,6"/>
+                    <Border Background="{StaticResource BgBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,10">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <TextBlock Text="Type: " Foreground="{StaticResource TextDimBrush}" FontSize="11"/>
+                                <TextBlock Text="{Binding LoadCellType}" Foreground="{StaticResource AccentBrush}"
+                                           FontWeight="Bold" FontSize="11"/>
+                                <TextBlock Text="  Cap: " Foreground="{StaticResource TextDimBrush}" FontSize="11"/>
+                                <TextBlock Text="{Binding LoadCellCapacity}" Foreground="{StaticResource TextBrush}" FontSize="11"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <TextBlock Text="Cal: " Foreground="{StaticResource TextDimBrush}" FontSize="11"/>
+                                <TextBlock Text="{Binding CalFactor}" Foreground="{StaticResource TextBrush}" FontSize="11"/>
+                                <TextBlock Text="  OL: " Foreground="{StaticResource TextDimBrush}" FontSize="11"/>
+                                <TextBlock Text="{Binding OverloadLimit}" Foreground="{StaticResource RedBrush}" FontSize="11"/>
+                            </StackPanel>
+                            <Button Content="Switch Load Cell (100g ↔ 30g)" Command="{Binding ToggleLoadCellCommand}"
+                                    Style="{StaticResource DarkButton}" FontSize="11" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Border>
 
                     <Button Command="{Binding EmergencyStopCommand}"
                             Style="{StaticResource RedButton}" FontSize="14" Padding="12,12" Margin="0,0,0,4">
