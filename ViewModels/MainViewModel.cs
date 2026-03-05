@@ -3,6 +3,7 @@ using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SurfaceTensionApp.Models;
@@ -287,6 +288,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
         AppendLog("→ Calibrate");
     }
 
+    /// <summary>
+    /// Send the known weight value to the Arduino during calibration.
+    /// Called after 'k' has already been sent to enter calibration mode.
+    /// </summary>
+    [RelayCommand]
+    private void SendCalibrationWeight(string weightStr)
+    {
+        if (!IsConnected) return;
+        _serial.Send(weightStr);
+        AppendLog($"→ Calibration weight: {weightStr} g");
+    }
+
     [RelayCommand]
     private void EmergencyStop()
     {
@@ -294,7 +307,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         if (IsEmergencyLocked)
         {
-            // Unlock
+            // Unlock — send 'r' to clear eStop state on Arduino
+            _serial.Send('r');
             IsEmergencyLocked = false;
             AppendLog("🔓 Emergency unlocked — system ready");
             return;
@@ -477,9 +491,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         try
         {
-            string dir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                "SurfaceTensionApp");
+            var dlg = new SaveFileDialog
+            {
+                Title = "Export Excel",
+                Filter = "Excel Files (*.xlsx)|*.xlsx",
+                FileName = $"surface_tension_results_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx",
+                InitialDirectory = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                    "SurfaceTensionApp"),
+            };
+            if (dlg.ShowDialog() != true) return;
+
+            string dir = Path.GetDirectoryName(dlg.FileName)!;
             string path = ExcelExportService.Export(_allData, dir);
             AppendLog($"✓ Excel saved: {path}");
             MessageBox.Show($"Saved to:\n{path}", "Export Complete", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -496,8 +519,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         LiveTimes.Clear();
         LiveForces.Clear();
-        GraphCleared?.Invoke();
+        LiveGraphCleared?.Invoke();
     }
+
+    /// <summary>Raised when only the live (in-progress) plot should be cleared.</summary>
+    public event Action? LiveGraphCleared;
 
     /// <summary>Raised when graph should be fully cleared (all completed runs too).</summary>
     public event Action? GraphCleared;
@@ -505,6 +531,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ClearAll()
     {
+        // Safety prompt to prevent accidental data loss
+        if (_allData.Count > 0 || LiveTimes.Count > 0)
+        {
+            var result = MessageBox.Show("Are you sure you want to clear all current data and graphs?",
+                                          "Confirm Clear", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (result \!= MessageBoxResult.Yes) return;
+        }
+
         _allData.Clear();
         _currentRun = null;
         _totalRuns = 0;
@@ -515,7 +549,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IsAutoRunning = false;
         AutoProgress = 0;
         AutoStatusText = "Idle";
-        GraphDataUpdated?.Invoke();
+        // Use GraphCleared (not GraphDataUpdated) to fully remove all scatter plots
+        GraphCleared?.Invoke();
         AppendLog("✓ All data cleared");
     }
 
@@ -866,6 +901,27 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        // ── Calibration responses ──
+        if (line.StartsWith("CAL_OK") || line.StartsWith("CAL_DONE"))
+        {
+            AppendLog("✓ Calibration completed successfully");
+            // Re-query system info to get updated calibration factor
+            QuerySystemInfo();
+            return;
+        }
+        if (line.StartsWith("CAL_FACTOR:") && !line.Contains("LOADCELL"))
+        {
+            // Standalone calibration factor update (outside INFO block)
+            CalFactor = line[11..];
+            AppendLog($"✓ New calibration factor: {CalFactor}");
+            return;
+        }
+        if (line.StartsWith("CAL_ERR") || line.StartsWith("CAL_FAIL"))
+        {
+            AppendLog($"✗ Calibration error: {line}");
+            return;
+        }
+
         // ── Monitor force line ──
         if (line.Contains("Force:"))
         {
@@ -945,10 +1001,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         try
         {
+            var dlg = new SaveFileDialog
+            {
+                Title = "Export PDF Report",
+                Filter = "PDF Files (*.pdf)|*.pdf",
+                FileName = $"SurfaceTension_Report_{DateTime.Now:yyyyMMdd_HHmmss}.pdf",
+                InitialDirectory = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                    "SurfaceTensionApp"),
+            };
+            if (dlg.ShowDialog() != true) return;
+
             byte[]? graphImage = CaptureGraphImage?.Invoke();
-            string dir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                "SurfaceTensionApp");
+            string dir = Path.GetDirectoryName(dlg.FileName)!;
             string path = PdfReportService.GenerateReport(
                 _allData, dir, graphImage,
                 config: Config,

@@ -12,6 +12,7 @@ public partial class CalibrationWizardWindow : Window
     private int _currentStep = 1;
     private const int TotalSteps = 5;
     private readonly DispatcherTimer _forceTimer;
+    private bool _monitorStarted;
 
     public CalibrationWizardWindow()
     {
@@ -106,18 +107,24 @@ public partial class CalibrationWizardWindow : Window
             UpdateExpectedForce();
         }
 
-        // On entering step 4 → populate summary
+        // On entering step 4 → populate summary and send 'k' to start calibration mode
         if (step == 4)
         {
             if (double.TryParse(KnownWeightBox.Text, out double w))
                 CalWeightSummary.Text = $"Known weight: {w:F2} g";
             CalLoadCell.Text = Radio100g.IsChecked == true ? "Load cell: 100g" : "Load cell: 30g";
+
+            // Send 'k' to enter calibration mode on Arduino
+            if (_vm.IsConnected)
+                _vm.CalibrateCommand.Execute(null);
         }
 
-        // Start monitor mode when entering live-force steps
-        if (step >= 2 && step <= 5 && _vm.IsConnected)
+        // Start monitor mode ONCE (not on every step change — resending 'm'
+        // can kick the Arduino out of calibration mode on the TFT)
+        if (step >= 2 && step <= 5 && _vm.IsConnected && !_monitorStarted)
         {
             _vm.MonitorCommand.Execute(null);
+            _monitorStarted = true;
         }
     }
 
@@ -200,8 +207,9 @@ public partial class CalibrationWizardWindow : Window
             return;
         }
 
-        _vm.CalibrateCommand.Execute(null);
-        CalStatus.Text = $"Calibration command sent with {weight:F2}g reference.";
+        // Send the weight value to Arduino (calibration mode already started on step entry)
+        _vm.SendCalibrationWeightCommand.Execute(KnownWeightBox.Text);
+        CalStatus.Text = $"Calibration weight sent: {weight:F2} g";
         CalStatus.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#44FF88"));
 
         // Update expected force for verification step
