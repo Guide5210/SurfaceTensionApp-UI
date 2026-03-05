@@ -7,8 +7,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>SurfaceTensionApp</AssemblyName>
     <RootNamespace>SurfaceTensionApp</RootNamespace>
-    <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
-    <EnableDefaultPageItems>false</EnableDefaultPageItems>
   </PropertyGroup>
 
   <ItemGroup>

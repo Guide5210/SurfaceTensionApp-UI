@@ -15,10 +15,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // ══════════════════════════════════════════════════════════════
     // Constants
     // ══════════════════════════════════════════════════════════════
-    private const int NUM_SPEEDS = 7;
+    private const int NUM_SPEEDS = 12;
     private const int AUTO_REPEATS = 10;
     private const int AUTO_BATCHES = 2;
-    private static readonly int TOTAL_AUTO_RUNS = AUTO_BATCHES * NUM_SPEEDS * AUTO_REPEATS; // 140
+    private static readonly int TOTAL_AUTO_RUNS = AUTO_BATCHES * NUM_SPEEDS * AUTO_REPEATS; // 240
 
     // ══════════════════════════════════════════════════════════════
     // Services
@@ -80,11 +80,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         "1: ULTRA_FAST (600 µm/s)",
         "2: FAST_UP (450 µm/s)",
-        "3: V8 (133.5 µm/s)",
-        "4: V6 (100.125 µm/s)",
-        "5: V4 (66.75 µm/s)",
-        "6: V2 (33.3375 µm/s)",
-        "7: MEASURE_F (18.75 µm/s)",
+        "3: FAST_DN (150 µm/s)",
+        "4: V8 (133.5 µm/s)",
+        "5: V6 (100.125 µm/s)",
+        "6: V4 (66.75 µm/s)",
+        "7: V2 (33.3375 µm/s)",
+        "8: MEASURE_F (18.75 µm/s)",
+        "9: MEASURE_M (7.50 µm/s)",
+        "B: MEASURE_X (1.875 µm/s)",
+        "C: MEASURE_Z (0.75 µm/s)",
     };
 
     // ══════════════════════════════════════════════════════════════
@@ -199,7 +203,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         else if (!string.IsNullOrEmpty(SelectedPort))
         {
             if (_serial.Connect(SelectedPort))
+            {
                 AppendLog($"✓ Connected to {SelectedPort}");
+                // Query system info from Arduino
+                QuerySystemInfo();
+            }
             else
                 AppendLog($"✗ Failed to connect to {SelectedPort}");
         }
@@ -239,8 +247,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         AutoProgress = 0;
         AutoStatusText = $"Auto: 0/{TOTAL_AUTO_RUNS}";
         _serial.Flush();
-        _serial.Send('a');
-        AppendLog($"→ Auto sequence started ({TOTAL_AUTO_RUNS} runs)");
+        _serial.Send('A');
+        AppendLog($"→ Auto sequence started ({TOTAL_AUTO_RUNS} runs: {AUTO_BATCHES}x{NUM_SPEEDS}x{AUTO_REPEATS})");
     }
 
     [RelayCommand]
@@ -326,7 +334,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        string speedCmd = SelectedSpeedOption[..1]; // "1", "2", ... "7"
+        string speedCmd = SelectedSpeedOption.Split(':')[0].Trim(); // "1", "2", ... "9", "B", "C"
         var profile = SpeedProfile.All.FirstOrDefault(s => s.SerialCmd == speedCmd[0]);
         if (profile == null) return;
 
@@ -352,6 +360,24 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _serial.Flush();
         _serial.Send('m');
         AppendLog("→ Monitor mode");
+    }
+
+    [RelayCommand]
+    private void QuerySystemInfo()
+    {
+        if (!IsConnected) return;
+        _serial.Flush();
+        _serial.Send('I');
+        AppendLog("→ System info query");
+    }
+
+    [RelayCommand]
+    private void ToggleLoadCell()
+    {
+        if (!IsConnected) return;
+        _serial.Flush();
+        _serial.Send('L');
+        AppendLog("→ Toggle load cell type");
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -784,6 +810,59 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (line.Contains("OVERLOAD"))
         {
             AppendLog("⚠ OVERLOAD detected!");
+            return;
+        }
+
+        // ── System Info responses (from 'I' command) ──
+        if (line.StartsWith("FIRMWARE:"))
+        {
+            FirmwareVersion = line[9..];
+            return;
+        }
+        if (line.StartsWith("LOADCELL_TYPE:"))
+        {
+            LoadCellType = line[14..];
+            return;
+        }
+        if (line.StartsWith("LOADCELL_CAP:"))
+        {
+            LoadCellCapacity = line[13..];
+            return;
+        }
+        if (line.StartsWith("CAL_FACTOR:"))
+        {
+            CalFactor = line[11..];
+            return;
+        }
+        if (line.StartsWith("OVERLOAD_LIM:"))
+        {
+            OverloadLimit = line[13..];
+            return;
+        }
+        if (line == "END_INFO")
+        {
+            ConnectionStatus = $"Connected ({_serial.PortName}) — {LoadCellType} {LoadCellCapacity}";
+            AppendLog($"✓ System info: {FirmwareVersion} | Load Cell: {LoadCellType} ({LoadCellCapacity}) | Cal: {CalFactor}");
+            return;
+        }
+
+        // ── LOADCELL_CHANGED (from 'L' command) ──
+        if (line.StartsWith("LOADCELL_CHANGED:"))
+        {
+            LoadCellType = line[17..]; // "100G" or "30G"
+            AppendLog($"✓ Load cell changed to {LoadCellType}");
+            // Re-query system info to update all fields
+            QuerySystemInfo();
+            MessageBox.Show(
+                $"Load cell switched to {LoadCellType}.\n\nRecalibration is recommended!\nUse Tools > Calibration Wizard or press Calibrate.",
+                "Load Cell Changed", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        // ── TARE_OK ──
+        if (line.Contains("TARE_OK"))
+        {
+            AppendLog("✓ Tare completed");
             return;
         }
 
