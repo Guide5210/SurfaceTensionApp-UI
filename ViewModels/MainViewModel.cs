@@ -92,15 +92,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     };
 
     // ══════════════════════════════════════════════════════════════
-    // System Info (from Arduino 'I' command)
-    // ══════════════════════════════════════════════════════════════
-    [ObservableProperty] private string _firmwareVersion = "—";
-    [ObservableProperty] private string _loadCellType = "—";
-    [ObservableProperty] private string _loadCellCapacity = "—";
-    [ObservableProperty] private string _calFactor = "—";
-    [ObservableProperty] private string _overloadLimit = "—";
-
-    // ══════════════════════════════════════════════════════════════
     // Measurement Configuration
     // ══════════════════════════════════════════════════════════════
     public MeasurementConfig Config { get; } = new();
