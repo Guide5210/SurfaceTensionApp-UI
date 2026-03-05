@@ -57,6 +57,7 @@ public partial class MainWindow : Window
         _vm.GraphDataUpdated += () => _needsRender = true;
         _vm.GraphRunCompleted += OnGraphRunCompleted;
         _vm.GraphCleared += OnGraphCleared;
+        _vm.LiveGraphCleared += OnLiveGraphCleared;
         _vm.SpikeFilterToggled += OnSpikeFilterToggled;
         _vm.CaptureGraphImage = CaptureGraph;
         _vm.PropertyChanged += (_, e) =>
@@ -126,6 +127,25 @@ public partial class MainWindow : Window
                 _runEntries.Clear();
                 _colorIndex = 0;
                 PlotControl.Plot.Add.HorizontalLine(0, 1, ScottPlot.Color.FromHex("#555555"));
+                PlotControl.Plot.Axes.AutoScale();
+                PlotControl.Refresh();
+            }
+            catch { }
+        });
+    }
+
+    private void OnLiveGraphCleared()
+    {
+        Dispatcher.InvokeAsync(() =>
+        {
+            try
+            {
+                // Only remove the live (in-progress) plot — keep completed run plots
+                if (_livePlot != null)
+                {
+                    PlotControl.Plot.Remove(_livePlot);
+                    _livePlot = null;
+                }
                 PlotControl.Plot.Axes.AutoScale();
                 PlotControl.Refresh();
             }
