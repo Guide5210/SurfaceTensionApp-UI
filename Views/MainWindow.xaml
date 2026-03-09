@@ -181,9 +181,94 @@
         </Grid.RowDefinitions>
 
         <!-- ══════════════════════════════════════════ MENU BAR ══════════════════════════════════════════ -->
-        <Menu Grid.Row="0" Background="#252538" Foreground="#E0E0E0" FontSize="12" Padding="4,2">
+        <Menu Grid.Row="0" Background="#252538" Foreground="#E0E0E0" FontSize="12" Padding="2,0">
+            <Menu.Resources>
+                <!-- Top-level menu item (has submenu children) -->
+                <Style x:Key="{x:Type MenuItem}" TargetType="MenuItem">
+                    <Setter Property="Foreground" Value="#E0E0E0"/>
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="Padding" Value="8,6"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="MenuItem">
+                                <Grid>
+                                    <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                            Padding="{TemplateBinding Padding}" CornerRadius="2">
+                                        <ContentPresenter ContentSource="Header" RecognizesAccessKey="True"
+                                                          VerticalAlignment="Center"/>
+                                    </Border>
+                                    <Popup x:Name="PART_Popup" IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                                           Placement="Bottom" AllowsTransparency="True" Focusable="False"
+                                           PopupAnimation="Fade" HorizontalOffset="-1">
+                                        <Border Background="#2A2A3E" BorderBrush="#555577" BorderThickness="1"
+                                                CornerRadius="4" Padding="3" Margin="0,0,8,8">
+                                            <Border.Effect>
+                                                <DropShadowEffect Color="Black" Opacity="0.5" BlurRadius="8" ShadowDepth="2"/>
+                                            </Border.Effect>
+                                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                                        </Border>
+                                    </Popup>
+                                </Grid>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsHighlighted" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="#3A3A55"/>
+                                    </Trigger>
+                                    <Trigger Property="IsSubmenuOpen" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="#3A3A55"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+                <!-- Submenu item (leaf — no children) -->
+                <Style x:Key="SubMenuItem" TargetType="MenuItem">
+                    <Setter Property="Foreground" Value="#E0E0E0"/>
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="Padding" Value="10,6"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="MenuItem">
+                                <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                        Padding="{TemplateBinding Padding}" CornerRadius="3" Margin="1">
+                                    <ContentPresenter ContentSource="Header" RecognizesAccessKey="True"
+                                                      VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsHighlighted" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="#4A9EFF"/>
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </Trigger>
+                                    <Trigger Property="IsEnabled" Value="False">
+                                        <Setter Property="Foreground" Value="#666680"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+                <!-- Separator inside submenu -->
+                <Style TargetType="Separator">
+                    <Setter Property="Background" Value="#3A3A52"/>
+                    <Setter Property="Margin" Value="6,3"/>
+                    <Setter Property="Height" Value="1"/>
+                </Style>
+            </Menu.Resources>
+
+            <MenuItem Header="File">
+                <MenuItem Header="Export PDF Report" Command="{Binding ExportPdfCommand}" Style="{StaticResource SubMenuItem}"/>
+                <MenuItem Header="Export Excel" Command="{Binding ExportExcelCommand}" Style="{StaticResource SubMenuItem}"/>
+                <Separator/>
+                <MenuItem Header="New Session" Command="{Binding NewSessionCommand}" Style="{StaticResource SubMenuItem}"/>
+            </MenuItem>
+            <MenuItem Header="Tools">
+                <MenuItem Header="Calibration Wizard..." Click="OnCalibrationWizardClick" Style="{StaticResource SubMenuItem}"/>
+            </MenuItem>
             <MenuItem Header="Settings">
-                <MenuItem Header="Measurement Setup" Click="OnMeasurementSetupClick"/>
+                <MenuItem Header="Measurement Setup..." Click="OnMeasurementSetupClick" Style="{StaticResource SubMenuItem}"/>
+            </MenuItem>
+            <MenuItem Header="Help">
+                <MenuItem Header="About" Click="OnAboutClick" Style="{StaticResource SubMenuItem}"/>
             </MenuItem>
         </Menu>
 
@@ -214,7 +299,7 @@
                                     </Grid.ColumnDefinitions>
                                     <ComboBox ItemsSource="{Binding AvailablePorts}" 
                                           SelectedItem="{Binding SelectedPort}" Margin="0,0,6,0"/>
-                                    <Button Grid.Column="1" Content="⟳" 
+                                    <Button Grid.Column="1" Content="⟳" Width="30" 
                                         Style="{StaticResource DarkButton}"
                                         Command="{Binding RefreshPortsCommand}" ToolTip="Refresh ports"/>
                                 </Grid>
@@ -281,20 +366,28 @@
                                Foreground="{StaticResource TextDimBrush}" Margin="0,6,0,6"/>
                         <Border Background="{StaticResource BgBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,10">
                             <StackPanel>
-                                <Button Content="1: Ultra Fast (600 µm/s)" Style="{StaticResource DarkButton}" 
+                                <Button Content="1: Ultra Fast (600 µm/s)" Style="{StaticResource DarkButton}"
                                     Command="{Binding RunSpeedCommand}" CommandParameter="1" Margin="0,0,0,3"/>
-                                <Button Content="2: Fast Up (400 µm/s)" Style="{StaticResource DarkButton}"
+                                <Button Content="2: Fast Up (450 µm/s)" Style="{StaticResource DarkButton}"
                                     Command="{Binding RunSpeedCommand}" CommandParameter="2" Margin="0,0,0,3"/>
-                                <Button Content="3: V8 (133.5 µm/s)" Style="{StaticResource DarkButton}"
+                                <Button Content="3: Fast Down (150 µm/s)" Style="{StaticResource DarkButton}"
                                     Command="{Binding RunSpeedCommand}" CommandParameter="3" Margin="0,0,0,3"/>
-                                <Button Content="4: V6 (100.125 µm/s)" Style="{StaticResource DarkButton}"
+                                <Button Content="4: V8 (133.5 µm/s)" Style="{StaticResource DarkButton}"
                                     Command="{Binding RunSpeedCommand}" CommandParameter="4" Margin="0,0,0,3"/>
-                                <Button Content="5: V4 (66.75 µm/s)" Style="{StaticResource DarkButton}"
+                                <Button Content="5: V6 (100.125 µm/s)" Style="{StaticResource DarkButton}"
                                     Command="{Binding RunSpeedCommand}" CommandParameter="5" Margin="0,0,0,3"/>
-                                <Button Content="6: V2 (33.3375 µm/s)" Style="{StaticResource DarkButton}"
+                                <Button Content="6: V4 (66.75 µm/s)" Style="{StaticResource DarkButton}"
                                     Command="{Binding RunSpeedCommand}" CommandParameter="6" Margin="0,0,0,3"/>
-                                <Button Content="7: Measure F (18.75 µm/s)" Style="{StaticResource DarkButton}"
+                                <Button Content="7: V2 (33.3375 µm/s)" Style="{StaticResource DarkButton}"
                                     Command="{Binding RunSpeedCommand}" CommandParameter="7" Margin="0,0,0,3"/>
+                                <Button Content="8: Measure F (18.75 µm/s)" Style="{StaticResource DarkButton}"
+                                    Command="{Binding RunSpeedCommand}" CommandParameter="8" Margin="0,0,0,3"/>
+                                <Button Content="9: Measure M (7.50 µm/s)" Style="{StaticResource DarkButton}"
+                                    Command="{Binding RunSpeedCommand}" CommandParameter="9" Margin="0,0,0,3"/>
+                                <Button Content="B: Measure X (1.875 µm/s)" Style="{StaticResource DarkButton}"
+                                    Command="{Binding RunSpeedCommand}" CommandParameter="B" Margin="0,0,0,3"/>
+                                <Button Content="C: Measure Z (0.75 µm/s)" Style="{StaticResource DarkButton}"
+                                    Command="{Binding RunSpeedCommand}" CommandParameter="C" Margin="0,0,0,3"/>
                             </StackPanel>
                         </Border>
 
@@ -321,11 +414,11 @@
                             </StackPanel>
                         </Border>
 
-                        <Button Content="▶ Full Auto (140 runs)" Command="{Binding RunAutoSequenceCommand}"
+                        <Button Content="▶ Full Auto (240 runs)" Command="{Binding RunAutoSequenceCommand}"
                             Style="{StaticResource GreenButton}" FontWeight="Bold" 
                             FontSize="13" Padding="12,10" Margin="0,0,0,10"/>
 
-                        <TextBlock Text="UTILITIES" FontSize="10" FontWeight="Bold" 
+                        <TextBlock Text="UTILITIES" FontSize="10" FontWeight="Bold"
                                Foreground="{StaticResource TextDimBrush}" Margin="0,6,0,6"/>
                         <UniformGrid Columns="2" Margin="0,0,0,6">
                             <Button Content="Calibrate" Command="{Binding CalibrateCommand}"
@@ -337,8 +430,34 @@
                             <Button Content="Go Home" Command="{Binding GoHomeCommand}"
                                 Style="{StaticResource DarkButton}" Margin="3,0,0,3"/>
                         </UniformGrid>
-                        <Button Content="Monitor" Command="{Binding MonitorCommand}"
-                            Style="{StaticResource DarkButton}" Margin="0,0,0,10"/>
+                        <UniformGrid Columns="2" Margin="0,0,0,6">
+                            <Button Content="Monitor" Command="{Binding MonitorCommand}"
+                                Style="{StaticResource DarkButton}" Margin="0,0,3,3"/>
+                            <Button Content="System Info" Command="{Binding QuerySystemInfoCommand}"
+                                Style="{StaticResource DarkButton}" Margin="3,0,0,3"/>
+                        </UniformGrid>
+
+                        <TextBlock Text="LOAD CELL" FontSize="10" FontWeight="Bold"
+                               Foreground="{StaticResource TextDimBrush}" Margin="0,6,0,6"/>
+                        <Border Background="{StaticResource BgBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,10">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <TextBlock Text="Type: " Foreground="{StaticResource TextDimBrush}" FontSize="11"/>
+                                    <TextBlock Text="{Binding LoadCellType}" Foreground="{StaticResource AccentBrush}"
+                                           FontWeight="Bold" FontSize="11"/>
+                                    <TextBlock Text="  Cap: " Foreground="{StaticResource TextDimBrush}" FontSize="11"/>
+                                    <TextBlock Text="{Binding LoadCellCapacity}" Foreground="{StaticResource TextBrush}" FontSize="11"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <TextBlock Text="Cal: " Foreground="{StaticResource TextDimBrush}" FontSize="11"/>
+                                    <TextBlock Text="{Binding CalFactor}" Foreground="{StaticResource TextBrush}" FontSize="11"/>
+                                    <TextBlock Text="  OL: " Foreground="{StaticResource TextDimBrush}" FontSize="11"/>
+                                    <TextBlock Text="{Binding OverloadLimit}" Foreground="{StaticResource RedBrush}" FontSize="11"/>
+                                </StackPanel>
+                                <Button Content="Switch Load Cell (100g ↔ 30g)" Command="{Binding ToggleLoadCellCommand}"
+                                    Style="{StaticResource DarkButton}" FontSize="11" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Border>
 
                         <Button Command="{Binding EmergencyStopCommand}"
                             Style="{StaticResource RedButton}" FontSize="14" Padding="12,12" Margin="0,0,0,4">
@@ -375,23 +494,23 @@
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top"
                                 Margin="0,8,8,0">
                             <Button Content="◀" ToolTip="Undo zoom/pan" x:Name="BtnUndo"
-                                Style="{StaticResource DarkButton}" Width="39" Margin="0,0,3,0" 
+                                Style="{StaticResource DarkButton}" Width="30" Margin="0,0,3,0" 
                                 Opacity="0.8" Click="OnGraphUndo" FontSize="12"/>
                             <Button Content="▶" ToolTip="Redo zoom/pan" x:Name="BtnRedo"
-                                Style="{StaticResource DarkButton}" Width="39" Margin="0,0,3,0"
+                                Style="{StaticResource DarkButton}" Width="30" Margin="0,0,3,0"
                                 Opacity="0.8" Click="OnGraphRedo" FontSize="12"/>
                             <Button Content="Home" ToolTip="Reset zoom" x:Name="BtnHome"
-                                Style="{StaticResource DarkButton}" Width="59" Margin="0,0,3,0"
+                                Style="{StaticResource DarkButton}" Width="46" Margin="0,0,3,0"
                                 Opacity="0.8" FontSize="11" Click="OnGraphHome"/>
                             <ToggleButton Content="Filter Spikes"
                                       IsChecked="{Binding IsSpikeFilterEnabled}"
                                       Style="{StaticResource SpikeFilterToggle}"
                                       Opacity="0.8" Margin="0,0,3,0"
-                                      ToolTip="Toggle spike noise filter on/off" Width="103"/>
+                                      ToolTip="Toggle spike noise filter on/off"/>
                             <TextBlock Text="Max:" Foreground="{StaticResource TextDimBrush}"
-                                   VerticalAlignment="Center" FontSize="10" Margin="4,0,2,0" Width="26"/>
+                                   VerticalAlignment="Center" FontSize="10" Margin="4,0,2,0"/>
                             <TextBox Text="{Binding SpikeThresholdText, UpdateSourceTrigger=PropertyChanged}"
-                                 Width="70" FontSize="10" Padding="3,2"
+                                 Width="55" FontSize="10" Padding="3,2"
                                  Background="#2A2A3E" Foreground="White" CaretBrush="White"
                                  BorderBrush="{StaticResource BorderBrush}"
                                  VerticalAlignment="Center"
@@ -399,7 +518,7 @@
                             <TextBlock Text="N" Foreground="{StaticResource TextDimBrush}"
                                    VerticalAlignment="Center" FontSize="10" Margin="2,0,3,0"/>
                             <Button Content="Clear Graph" Command="{Binding ClearGraphCommand}"
-                                Style="{StaticResource DarkButton}" Opacity="0.8" Width="113"/>
+                                Style="{StaticResource DarkButton}" Opacity="0.8"/>
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -613,7 +732,7 @@
                         <Button Content="🆕 New" Command="{Binding NewSessionCommand}"
                             Style="{StaticResource DarkButton}" Width="70" Margin="0,0,4,0" FontSize="11"/>
                         <Button Content="🗑 Delete" Command="{Binding DeleteSessionCommand}"
-                            Style="{StaticResource DarkButton}" Width="83" FontSize="11"/>
+                            Style="{StaticResource DarkButton}" Width="70" FontSize="11"/>
                     </StackPanel>
                 </Grid>
             </Border>

@@ -60,6 +60,7 @@ public partial class MainWindow : Window
         _vm.LiveGraphCleared += OnLiveGraphCleared;
         _vm.SpikeFilterToggled += OnSpikeFilterToggled;
         _vm.CaptureGraphImage = CaptureGraph;
+        _vm.SessionLoaded += OnSessionLoaded;
         _vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(MainViewModel.SerialLog))
@@ -224,6 +225,93 @@ public partial class MainWindow : Window
 
                 _livePlot = null;
                 _colorIndex++;
+                PlotControl.Refresh();
+            }
+            catch { }
+        });
+    }
+
+    private void OnSessionLoaded()
+    {
+        Dispatcher.InvokeAsync(() =>
+        {
+            try
+            {
+                PlotControl.Plot.Clear();
+                _runEntries.Clear();
+                _colorIndex = 0;
+                PlotControl.Plot.Add.HorizontalLine(0, 1, ScottPlot.Color.FromHex("#555555"));
+
+                // วนลูปนำข้อมูลที่โหลดมา วาดกลับไปบนกราฟ
+                foreach (var (key, group) in _vm.AllData)
+                {
+                    for (int i = 0; i < group.Runs.Count; i++)
+                    {
+                        var run = group.Runs[i];
+                        var color = RunColors[_colorIndex % RunColors.Length];
+
+                        double[] rawTimes = run.Times.ToArray();
+                        double[] rawForces = run.Forces.ToArray();
+
+                        // เช็คว่าเปิด Spike Filter อยู่หรือไม่
+                        double[] displayTimes, displayForces;
+                        if (_vm.IsSpikeFilterEnabled)
+                        {
+                            var (ft, ff, _) = SpikeFilter.Apply(rawTimes, rawForces, _vm.SpikeThreshold);
+                            displayTimes = ft;
+                            displayForces = ff;
+                        }
+                        else
+                        {
+                            displayTimes = rawTimes;
+                            displayForces = rawForces;
+                        }
+
+                        // วาดเส้นกราฟ
+                        var scatter = PlotControl.Plot.Add.Scatter(displayTimes, displayForces);
+                        scatter.Color = color;
+                        scatter.LineWidth = 1.5f;
+                        scatter.MarkerSize = 0;
+
+                        // วาดจุด Peak
+                        ScottPlot.Plottables.Marker? peakMarker = null;
+                        if (displayForces.Length > 0)
+                        {
+                            int peakIdx = 0; double peakVal = displayForces[0];
+                            for (int j = 1; j < displayForces.Length; j++)
+                                if (displayForces[j] > peakVal) { peakVal = displayForces[j]; peakIdx = j; }
+                            if (peakIdx < displayTimes.Length)
+                            {
+                                peakMarker = PlotControl.Plot.Add.Marker(displayTimes[peakIdx], peakVal);
+                                peakMarker.Color = color;
+                                peakMarker.Size = 6;
+                            }
+                        }
+
+                        int idx = _runEntries.Count;
+                        _runEntries.Add(new RunPlotEntry
+                        {
+                            RunIndex = idx + 1,
+                            Scatter = scatter,
+                            PeakMarker = peakMarker,
+                            OrigColor = color,
+                            RawTimes = rawTimes,
+                            RawForces = rawForces,
+                        });
+
+                        // เชื่อมสีให้ตรงกับตาราง DataGrid
+                        if (idx < _vm.RunResults.Count)
+                        {
+                            var row = _vm.RunResults[idx];
+                            row.PlotIndex = idx;
+                            row.ColorHex = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+                        }
+
+                        _colorIndex++;
+                    }
+                }
+
+                PlotControl.Plot.Axes.AutoScale();
                 PlotControl.Refresh();
             }
             catch { }
@@ -505,6 +593,28 @@ public partial class MainWindow : Window
             DataContext = _vm
         };
         dialog.ShowDialog();
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // Menu — Tools & Help
+    // ═══════════════════════════════════════════════════════
+    private void OnCalibrationWizardClick(object sender, RoutedEventArgs e)
+    {
+        // เปิดหน้าต่าง Calibration Wizard
+        var dialog = new CalibrationWizardWindow(_vm)
+        {
+            Owner = this
+        };
+        dialog.ShowDialog();
+    }
+
+    private void OnAboutClick(object sender, RoutedEventArgs e)
+    {
+        // แสดงกล่องข้อความ About
+        MessageBox.Show("Surface Tension Tester v7.3\n\nDesigned and Developed by Soranan Suebsilpasakul\nSchool of Integrated Innovative Technology (SIITec)\nKing Mongkut's Institute of Technology Ladkrabang (KMITL)",
+            "About Surface Tension Tester",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
     }
 
     private void OnGraphHome(object sender, RoutedEventArgs e)

@@ -77,6 +77,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // ══════════════════════════════════════════════════════════════
     [ObservableProperty] private string _customRepeatCount = "10";
     [ObservableProperty] private string _selectedSpeedOption = "1: ULTRA_FAST (600 µm/s)";
+
+    // ══════════════════════════════════════════════════════════════
+    // System Info Properties (เพิ่มใหม่)
+    // ══════════════════════════════════════════════════════════════
+    [ObservableProperty] private string _firmwareVersion = "—";
+    [ObservableProperty] private string _loadCellType = "—";
+    [ObservableProperty] private string _loadCellCapacity = "—";
+    [ObservableProperty] private string _calFactor = "—";
+    [ObservableProperty] private string _overloadLimit = "—";
+
     public ObservableCollection<string> SpeedOptions { get; } = new()
     {
         "1: ULTRA_FAST (600 µm/s)",
@@ -531,11 +541,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ClearAll()
     {
-        // Safety prompt to prevent accidental data loss
         if (_allData.Count > 0 || LiveTimes.Count > 0)
         {
-            var result = MessageBox.Show("Are you sure you want to clear all current data and graphs?",
-                                          "Confirm Clear", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            MessageBoxResult result = MessageBox.Show("Are you sure you want to clear all current data and graphs?",
+                                         "Confirm Clear", MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (result != MessageBoxResult.Yes) return;
         }
 
@@ -549,7 +558,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IsAutoRunning = false;
         AutoProgress = 0;
         AutoStatusText = "Idle";
-        // Use GraphCleared (not GraphDataUpdated) to fully remove all scatter plots
+
         GraphCleared?.Invoke();
         AppendLog("✓ All data cleared");
     }
@@ -1082,6 +1091,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
             AppendLog($"✗ Load error: {ex.Message}");
         }
     }
+
+    public event Action? SessionLoaded;
 
     [RelayCommand]
     private void DeleteSession()
