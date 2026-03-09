@@ -191,11 +191,11 @@ public static class OutlierRejection
 }
 
 /// <summary>
-/// Threshold-based spike filter with linear interpolation.
-/// Points where force exceeds the user-specified threshold are replaced
-/// with linearly interpolated values from the nearest clean neighbors.
-/// The output arrays are the same length as the input — no points are
-/// removed, preserving the original graph shape.
+/// Spike filter using Rate of Change (derivative) detection.
+/// A point is flagged as a spike when its force value jumps unnaturally
+/// far from its neighbors — preserving the real peak that rises gradually.
+/// When a user-specified maxForce threshold is provided, that absolute
+/// threshold is used instead (backwards-compatible).
 /// </summary>
 public static class SpikeFilter
 {
@@ -204,8 +204,8 @@ public static class SpikeFilter
     /// </summary>
     /// <param name="times">Time values.</param>
     /// <param name="forces">Force values.</param>
-    /// <param name="maxForce">Force threshold — points with force &gt; maxForce are spikes.
-    /// If null, auto-detects using IQR method (Q3 + 2.5 * IQR).</param>
+    /// <param name="maxForce">Absolute force threshold — points with force &gt; maxForce are spikes.
+    /// If null, auto-detects using Rate of Change (derivative) method.</param>
     /// <returns>Same-length arrays with spikes replaced by interpolation, plus spike count.</returns>
     public static (double[] times, double[] forces, int spikeCount) Apply(
         double[] times, double[] forces, double? maxForce = null)
@@ -214,33 +214,70 @@ public static class SpikeFilter
         if (n < 3)
             return (times, forces, 0);
 
-        // Determine threshold
-        double upperThreshold;
-        if (maxForce.HasValue)
-        {
-            upperThreshold = maxForce.Value;
-        }
-        else
-        {
-            // Auto-detect using IQR
-            double[] sorted = new double[n];
-            Array.Copy(forces, sorted, n);
-            Array.Sort(sorted);
-            double q1 = sorted[n / 4];
-            double q3 = sorted[3 * n / 4];
-            double iqr = q3 - q1;
-            upperThreshold = q3 + 2.5 * iqr;
-        }
-
         // Mark spike points
         bool[] isSpike = new bool[n];
         int spikeCount = 0;
-        for (int i = 0; i < n; i++)
+
+        if (maxForce.HasValue)
         {
-            if (forces[i] > upperThreshold)
+            // User-specified absolute threshold (unchanged behavior)
+            double upperThreshold = maxForce.Value;
+            for (int i = 0; i < n; i++)
             {
-                isSpike[i] = true;
-                spikeCount++;
+                if (forces[i] > upperThreshold)
+                {
+                    isSpike[i] = true;
+                    spikeCount++;
+                }
+            }
+        }
+        else
+        {
+            // Auto-detect using Rate of Change (derivative filter).
+            // Compute point-to-point deltas and use a robust threshold
+            // based on median absolute delta to find sudden jumps.
+            double[] deltas = new double[n - 1];
+            for (int i = 0; i < n - 1; i++)
+                deltas[i] = Math.Abs(forces[i + 1] - forces[i]);
+
+            // Median absolute delta
+            double[] sortedDeltas = new double[deltas.Length];
+            Array.Copy(deltas, sortedDeltas, deltas.Length);
+            Array.Sort(sortedDeltas);
+            double medianDelta = sortedDeltas.Length % 2 == 1
+                ? sortedDeltas[sortedDeltas.Length / 2]
+                : (sortedDeltas[sortedDeltas.Length / 2 - 1] + sortedDeltas[sortedDeltas.Length / 2]) / 2.0;
+
+            // Threshold: a jump must exceed 8x the median delta to be a spike.
+            // Floor prevents false positives when all data is very smooth.
+            double deltaThreshold = Math.Max(medianDelta * 8.0, 1e-6);
+
+            for (int i = 0; i < n; i++)
+            {
+                double deltaLeft = i > 0 ? Math.Abs(forces[i] - forces[i - 1]) : 0;
+                double deltaRight = i < n - 1 ? Math.Abs(forces[i + 1] - forces[i]) : 0;
+
+                // A spike jumps sharply both in AND out (or is at the boundary)
+                // A real peak rises gradually from the left side
+                if (i > 0 && i < n - 1)
+                {
+                    // Interior point: spike if BOTH left and right deltas exceed threshold
+                    if (deltaLeft > deltaThreshold && deltaRight > deltaThreshold)
+                    {
+                        isSpike[i] = true;
+                        spikeCount++;
+                    }
+                }
+                else if (i == 0 && deltaRight > deltaThreshold * 2)
+                {
+                    isSpike[i] = true;
+                    spikeCount++;
+                }
+                else if (i == n - 1 && deltaLeft > deltaThreshold * 2)
+                {
+                    isSpike[i] = true;
+                    spikeCount++;
+                }
             }
         }
 
@@ -267,13 +304,12 @@ public static class SpikeFilter
 
             if (left < 0 && right >= n)
             {
-                // Entire signal is above threshold — can't interpolate
+                // Entire signal is above threshold — cannot interpolate
                 continue;
             }
 
             if (left < 0)
             {
-                // Spike at the very beginning — extend right boundary value
                 for (int j = regionStart; j <= regionEnd; j++)
                     filtered[j] = forces[right];
                 continue;
@@ -281,7 +317,6 @@ public static class SpikeFilter
 
             if (right >= n)
             {
-                // Spike at the very end — extend left boundary value
                 for (int j = regionStart; j <= regionEnd; j++)
                     filtered[j] = forces[left];
                 continue;

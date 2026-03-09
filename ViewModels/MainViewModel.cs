@@ -3,6 +3,7 @@ using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SurfaceTensionApp.Models;
@@ -15,10 +16,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // ══════════════════════════════════════════════════════════════
     // Constants
     // ══════════════════════════════════════════════════════════════
-    private const int NUM_SPEEDS = 7;
+    private const int NUM_SPEEDS = 12;
     private const int AUTO_REPEATS = 10;
     private const int AUTO_BATCHES = 2;
-    private static readonly int TOTAL_AUTO_RUNS = AUTO_BATCHES * NUM_SPEEDS * AUTO_REPEATS; // 140
+    private static readonly int TOTAL_AUTO_RUNS = AUTO_BATCHES * NUM_SPEEDS * AUTO_REPEATS; // 240
 
     // ══════════════════════════════════════════════════════════════
     // Services
@@ -76,15 +77,29 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // ══════════════════════════════════════════════════════════════
     [ObservableProperty] private string _customRepeatCount = "10";
     [ObservableProperty] private string _selectedSpeedOption = "1: ULTRA_FAST (600 µm/s)";
+
+    // ══════════════════════════════════════════════════════════════
+    // System Info Properties (เพิ่มใหม่)
+    // ══════════════════════════════════════════════════════════════
+    [ObservableProperty] private string _firmwareVersion = "—";
+    [ObservableProperty] private string _loadCellType = "—";
+    [ObservableProperty] private string _loadCellCapacity = "—";
+    [ObservableProperty] private string _calFactor = "—";
+    [ObservableProperty] private string _overloadLimit = "—";
+
     public ObservableCollection<string> SpeedOptions { get; } = new()
     {
         "1: ULTRA_FAST (600 µm/s)",
         "2: FAST_UP (450 µm/s)",
-        "3: V8 (133.5 µm/s)",
-        "4: V6 (100.125 µm/s)",
-        "5: V4 (66.75 µm/s)",
-        "6: V2 (33.3375 µm/s)",
-        "7: MEASURE_F (18.75 µm/s)",
+        "3: FAST_DN (150 µm/s)",
+        "4: V8 (133.5 µm/s)",
+        "5: V6 (100.125 µm/s)",
+        "6: V4 (66.75 µm/s)",
+        "7: V2 (33.3375 µm/s)",
+        "8: MEASURE_F (18.75 µm/s)",
+        "9: MEASURE_M (7.50 µm/s)",
+        "B: MEASURE_X (1.875 µm/s)",
+        "C: MEASURE_Z (0.75 µm/s)",
     };
 
     // ══════════════════════════════════════════════════════════════
@@ -199,7 +214,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         else if (!string.IsNullOrEmpty(SelectedPort))
         {
             if (_serial.Connect(SelectedPort))
+            {
                 AppendLog($"✓ Connected to {SelectedPort}");
+                // Query system info from Arduino
+                QuerySystemInfo();
+            }
             else
                 AppendLog($"✗ Failed to connect to {SelectedPort}");
         }
@@ -239,8 +258,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         AutoProgress = 0;
         AutoStatusText = $"Auto: 0/{TOTAL_AUTO_RUNS}";
         _serial.Flush();
-        _serial.Send('a');
-        AppendLog($"→ Auto sequence started ({TOTAL_AUTO_RUNS} runs)");
+        _serial.Send('A');
+        AppendLog($"→ Auto sequence started ({TOTAL_AUTO_RUNS} runs: {AUTO_BATCHES}x{NUM_SPEEDS}x{AUTO_REPEATS})");
     }
 
     [RelayCommand]
@@ -279,6 +298,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
         AppendLog("→ Calibrate");
     }
 
+    /// <summary>
+    /// Send the known weight value to the Arduino during calibration.
+    /// Called after 'k' has already been sent to enter calibration mode.
+    /// </summary>
+    [RelayCommand]
+    private void SendCalibrationWeight(string weightStr)
+    {
+        if (!IsConnected) return;
+        _serial.Send(weightStr);
+        AppendLog($"→ Calibration weight: {weightStr} g");
+    }
+
     [RelayCommand]
     private void EmergencyStop()
     {
@@ -286,7 +317,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         if (IsEmergencyLocked)
         {
-            // Unlock
+            // Unlock — send 'r' to clear eStop state on Arduino
+            _serial.Send('r');
             IsEmergencyLocked = false;
             AppendLog("🔓 Emergency unlocked — system ready");
             return;
@@ -326,7 +358,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        string speedCmd = SelectedSpeedOption[..1]; // "1", "2", ... "7"
+        string speedCmd = SelectedSpeedOption.Split(':')[0].Trim(); // "1", "2", ... "9", "B", "C"
         var profile = SpeedProfile.All.FirstOrDefault(s => s.SerialCmd == speedCmd[0]);
         if (profile == null) return;
 
@@ -352,6 +384,24 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _serial.Flush();
         _serial.Send('m');
         AppendLog("→ Monitor mode");
+    }
+
+    [RelayCommand]
+    private void QuerySystemInfo()
+    {
+        if (!IsConnected) return;
+        _serial.Flush();
+        _serial.Send('I');
+        AppendLog("→ System info query");
+    }
+
+    [RelayCommand]
+    private void ToggleLoadCell()
+    {
+        if (!IsConnected) return;
+        _serial.Flush();
+        _serial.Send('L');
+        AppendLog("→ Toggle load cell type");
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -451,9 +501,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         try
         {
-            string dir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                "SurfaceTensionApp");
+            var dlg = new SaveFileDialog
+            {
+                Title = "Export Excel",
+                Filter = "Excel Files (*.xlsx)|*.xlsx",
+                FileName = $"surface_tension_results_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx",
+                InitialDirectory = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                    "SurfaceTensionApp"),
+            };
+            if (dlg.ShowDialog() != true) return;
+
+            string dir = Path.GetDirectoryName(dlg.FileName)!;
             string path = ExcelExportService.Export(_allData, dir);
             AppendLog($"✓ Excel saved: {path}");
             MessageBox.Show($"Saved to:\n{path}", "Export Complete", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -470,8 +529,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         LiveTimes.Clear();
         LiveForces.Clear();
-        GraphCleared?.Invoke();
+        LiveGraphCleared?.Invoke();
     }
+
+    /// <summary>Raised when only the live (in-progress) plot should be cleared.</summary>
+    public event Action? LiveGraphCleared;
 
     /// <summary>Raised when graph should be fully cleared (all completed runs too).</summary>
     public event Action? GraphCleared;
@@ -479,6 +541,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ClearAll()
     {
+        if (_allData.Count > 0 || LiveTimes.Count > 0)
+        {
+            MessageBoxResult result = MessageBox.Show("Are you sure you want to clear all current data and graphs?",
+                                         "Confirm Clear", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (result != MessageBoxResult.Yes) return;
+        }
+
         _allData.Clear();
         _currentRun = null;
         _totalRuns = 0;
@@ -489,7 +558,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IsAutoRunning = false;
         AutoProgress = 0;
         AutoStatusText = "Idle";
-        GraphDataUpdated?.Invoke();
+
+        GraphCleared?.Invoke();
         AppendLog("✓ All data cleared");
     }
 
@@ -787,6 +857,80 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        // ── System Info responses (from 'I' command) ──
+        if (line.StartsWith("FIRMWARE:"))
+        {
+            FirmwareVersion = line[9..];
+            return;
+        }
+        if (line.StartsWith("LOADCELL_TYPE:"))
+        {
+            LoadCellType = line[14..];
+            return;
+        }
+        if (line.StartsWith("LOADCELL_CAP:"))
+        {
+            LoadCellCapacity = line[13..];
+            return;
+        }
+        if (line.StartsWith("CAL_FACTOR:"))
+        {
+            CalFactor = line[11..];
+            return;
+        }
+        if (line.StartsWith("OVERLOAD_LIM:"))
+        {
+            OverloadLimit = line[13..];
+            return;
+        }
+        if (line == "END_INFO")
+        {
+            ConnectionStatus = $"Connected ({_serial.PortName}) — {LoadCellType} {LoadCellCapacity}";
+            AppendLog($"✓ System info: {FirmwareVersion} | Load Cell: {LoadCellType} ({LoadCellCapacity}) | Cal: {CalFactor}");
+            return;
+        }
+
+        // ── LOADCELL_CHANGED (from 'L' command) ──
+        if (line.StartsWith("LOADCELL_CHANGED:"))
+        {
+            LoadCellType = line[17..]; // "100G" or "30G"
+            AppendLog($"✓ Load cell changed to {LoadCellType}");
+            // Re-query system info to update all fields
+            QuerySystemInfo();
+            MessageBox.Show(
+                $"Load cell switched to {LoadCellType}.\n\nRecalibration is recommended!\nUse Tools > Calibration Wizard or press Calibrate.",
+                "Load Cell Changed", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        // ── TARE_OK ──
+        if (line.Contains("TARE_OK"))
+        {
+            AppendLog("✓ Tare completed");
+            return;
+        }
+
+        // ── Calibration responses ──
+        if (line.StartsWith("CAL_OK") || line.StartsWith("CAL_DONE"))
+        {
+            AppendLog("✓ Calibration completed successfully");
+            // Re-query system info to get updated calibration factor
+            QuerySystemInfo();
+            return;
+        }
+        if (line.StartsWith("CAL_FACTOR:") && !line.Contains("LOADCELL"))
+        {
+            // Standalone calibration factor update (outside INFO block)
+            CalFactor = line[11..];
+            AppendLog($"✓ New calibration factor: {CalFactor}");
+            return;
+        }
+        if (line.StartsWith("CAL_ERR") || line.StartsWith("CAL_FAIL"))
+        {
+            AppendLog($"✗ Calibration error: {line}");
+            return;
+        }
+
         // ── Monitor force line ──
         if (line.Contains("Force:"))
         {
@@ -866,10 +1010,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         try
         {
+            var dlg = new SaveFileDialog
+            {
+                Title = "Export PDF Report",
+                Filter = "PDF Files (*.pdf)|*.pdf",
+                FileName = $"SurfaceTension_Report_{DateTime.Now:yyyyMMdd_HHmmss}.pdf",
+                InitialDirectory = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                    "SurfaceTensionApp"),
+            };
+            if (dlg.ShowDialog() != true) return;
+
             byte[]? graphImage = CaptureGraphImage?.Invoke();
-            string dir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                "SurfaceTensionApp");
+            string dir = Path.GetDirectoryName(dlg.FileName)!;
             string path = PdfReportService.GenerateReport(
                 _allData, dir, graphImage,
                 config: Config,
@@ -938,6 +1091,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
             AppendLog($"✗ Load error: {ex.Message}");
         }
     }
+
+    public event Action? SessionLoaded;
 
     [RelayCommand]
     private void DeleteSession()
