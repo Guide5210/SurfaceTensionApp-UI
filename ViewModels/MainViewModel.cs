@@ -122,7 +122,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _spikeThresholdText = "";
 
     /// <summary>
-    /// Parsed threshold value (null = auto-detect using IQR).
+    /// Parsed threshold value (null = auto-detect using Rate of Change).
     /// </summary>
     public double? SpikeThreshold =>
         double.TryParse(SpikeThresholdText, out double v) && v > 0 ? v : null;
@@ -536,7 +536,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             var result = MessageBox.Show("Are you sure you want to clear all current data and graphs?",
                                           "Confirm Clear", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-            if (result \!= MessageBoxResult.Yes) return;
+            if (result != MessageBoxResult.Yes) return;
         }
 
         _allData.Clear();
