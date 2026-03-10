@@ -175,13 +175,17 @@
     </Window.Resources>
 
     <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="93*"/>
+            <ColumnDefinition Width="607*"/>
+        </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
         <!-- ══════════════════════════════════════════ MENU BAR ══════════════════════════════════════════ -->
-        <Menu Grid.Row="0" Background="#252538" Foreground="#E0E0E0" FontSize="12" Padding="2,0">
+        <Menu Grid.Row="0" Background="#252538" Foreground="#E0E0E0" FontSize="12" Padding="2,0" Grid.ColumnSpan="2">
             <Menu.Resources>
                 <!-- Top-level menu item (has submenu children) -->
                 <Style x:Key="{x:Type MenuItem}" TargetType="MenuItem">
@@ -272,7 +276,7 @@
             </MenuItem>
         </Menu>
 
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="1" Grid.ColumnSpan="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="260"/>
                 <ColumnDefinition Width="*"/>
@@ -299,9 +303,9 @@
                                     </Grid.ColumnDefinitions>
                                     <ComboBox ItemsSource="{Binding AvailablePorts}" 
                                           SelectedItem="{Binding SelectedPort}" Margin="0,0,6,0"/>
-                                    <Button Grid.Column="1" Content="⟳" Width="30" 
+                                    <Button Grid.Column="1" Content="⟳" 
                                         Style="{StaticResource DarkButton}"
-                                        Command="{Binding RefreshPortsCommand}" ToolTip="Refresh ports"/>
+                                        Command="{Binding RefreshPortsCommand}" ToolTip="Refresh ports" Margin="0,0,-2,0"/>
                                 </Grid>
                                 <Button Command="{Binding ToggleConnectCommand}" Margin="0,0,0,4"
                                     Style="{StaticResource DarkButton}">
@@ -494,13 +498,13 @@
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top"
                                 Margin="0,8,8,0">
                             <Button Content="◀" ToolTip="Undo zoom/pan" x:Name="BtnUndo"
-                                Style="{StaticResource DarkButton}" Width="30" Margin="0,0,3,0" 
+                                Style="{StaticResource DarkButton}" Width="39" Margin="0,0,3,0" 
                                 Opacity="0.8" Click="OnGraphUndo" FontSize="12"/>
                             <Button Content="▶" ToolTip="Redo zoom/pan" x:Name="BtnRedo"
-                                Style="{StaticResource DarkButton}" Width="30" Margin="0,0,3,0"
+                                Style="{StaticResource DarkButton}" Width="39" Margin="0,0,3,0"
                                 Opacity="0.8" Click="OnGraphRedo" FontSize="12"/>
                             <Button Content="Home" ToolTip="Reset zoom" x:Name="BtnHome"
-                                Style="{StaticResource DarkButton}" Width="46" Margin="0,0,3,0"
+                                Style="{StaticResource DarkButton}" Width="59" Margin="0,0,3,0"
                                 Opacity="0.8" FontSize="11" Click="OnGraphHome"/>
                             <ToggleButton Content="Filter Spikes"
                                       IsChecked="{Binding IsSpikeFilterEnabled}"
@@ -728,11 +732,11 @@
                     </ListBox>
                     <StackPanel Grid.Row="7" Orientation="Horizontal" Margin="0,4,0,0">
                         <Button Content="📂 Load" Command="{Binding LoadSessionCommand}"
-                            Style="{StaticResource DarkButton}" Width="70" Margin="0,0,4,0" FontSize="11"/>
+                            Style="{StaticResource DarkButton}" Width="72" Margin="0,0,4,0" FontSize="11"/>
                         <Button Content="🆕 New" Command="{Binding NewSessionCommand}"
-                            Style="{StaticResource DarkButton}" Width="70" Margin="0,0,4,0" FontSize="11"/>
+                            Style="{StaticResource DarkButton}" Width="72" Margin="0,0,4,0" FontSize="11"/>
                         <Button Content="🗑 Delete" Command="{Binding DeleteSessionCommand}"
-                            Style="{StaticResource DarkButton}" Width="70" FontSize="11"/>
+                            Style="{StaticResource DarkButton}" Width="85" FontSize="11"/>
                     </StackPanel>
                 </Grid>
             </Border>

@@ -635,5 +635,10 @@ public partial class MainWindow : Window
         ApplyViewState(_viewHistory[_viewIndex]);
     }
 
+    private void Button_Click(object sender, RoutedEventArgs e)
+    {
+
+    }
+
     private void OnPlotInteracted(object? sender, EventArgs e) => SaveViewState();
 }
