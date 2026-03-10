@@ -22,7 +22,7 @@ public class SerialService : IDisposable
 
     public static string[] GetAvailablePorts() => SerialPort.GetPortNames();
 
-    public bool Connect(string portName, int baudRate = 115200)
+    public bool Connect(string portName, int baudRate = 250000)
     {
         Disconnect();
         try

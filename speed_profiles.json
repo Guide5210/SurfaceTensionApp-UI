@@ -8,7 +8,7 @@
   { "Number": 7,  "Name": "Vtwo",       "SpeedMmS": 0.0333375,"Description": "V2 (33.3375 µm/s)",        "SerialCmd": "7" },
   { "Number": 8,  "Name": "MEASURE_F",  "SpeedMmS": 0.01875,  "Description": "Measure F (18.75 µm/s)",   "SerialCmd": "8" },
   { "Number": 9,  "Name": "MEASURE_M",  "SpeedMmS": 0.0075,   "Description": "Measure M (7.50 µm/s)",    "SerialCmd": "9" },
-  { "Number": 10, "Name": "MEASURE_U",  "SpeedMmS": 0.00375,  "Description": "Measure U (3.75 µm/s)",    "SerialCmd": ""  },
+  { "Number": 10, "Name": "MEASURE_U",  "SpeedMmS": 0.00375,  "Description": "Measure U (3.75 µm/s) [DISABLED: firmware cmd 'A' conflicts with Auto Sequence]", "SerialCmd": ""  },
   { "Number": 11, "Name": "MEASURE_X",  "SpeedMmS": 0.001875, "Description": "Measure X (1.875 µm/s)",   "SerialCmd": "B" },
   { "Number": 12, "Name": "MEASURE_Z",  "SpeedMmS": 0.00075,  "Description": "Measure Z (0.75 µm/s)",    "SerialCmd": "C" }
 ]

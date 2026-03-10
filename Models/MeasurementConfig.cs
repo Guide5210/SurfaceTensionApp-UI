@@ -32,6 +32,9 @@ public partial class MeasurementConfig : ObservableObject
     [ObservableProperty] private string _sampleId = "";
     [ObservableProperty] private string _notes = "";
 
+    // ── Motor Travel Distance (set from encoder Home/Target positions) ──
+    [ObservableProperty] private double? _travelDistanceMm;
+
     // ── Display Unit ──
     [ObservableProperty] private string _unit = "mN/m";
 

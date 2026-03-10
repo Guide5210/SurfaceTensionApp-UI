@@ -44,6 +44,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool   _isConnected;
     [ObservableProperty] private string _connectionStatus = "Disconnected";
 
+    public ObservableCollection<int> AvailableBaudRates { get; } = new()
+        { 115200, 250000, 500000, 1000000 };
+    [ObservableProperty] private int _selectedBaudRate = 250000;
+
     // ══════════════════════════════════════════════════════════════
     // Encoder mode
     // ══════════════════════════════════════════════════════════════
@@ -215,9 +219,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _protocol.RunEndReceived       += OnRunEnd;
         _protocol.BatchComplete        += bn    => AppendLog($"✓ Batch {bn}/{AUTO_BATCHES} complete");
         _protocol.AllBatchesComplete   += ()    => { IsAutoRunning = false; AutoStatusText = $"Complete! {_runs.TotalRuns} runs"; AppendLog($"✓ All batches complete: {_runs.TotalRuns} runs"); };
-        _protocol.EncoderHomeReceived  += v     => EncoderHome   = v + " mm";
-        _protocol.EncoderTargetReceived+= v     => EncoderTarget = v + " mm";
+        _protocol.EncoderHomeReceived  += v     => { EncoderHome   = v + " mm"; UpdateTravelDistance(); };
+        _protocol.EncoderTargetReceived+= v     => { EncoderTarget = v + " mm"; UpdateTravelDistance(); };
         _protocol.EncoderExited        += ()    => IsEncoderMode = false;
+        _protocol.Settled              += ()    => AppendLog("✓ Settled");
+        _protocol.SettleTimeout        += ()    => AppendLog("⚠ Settle timeout");
+        _protocol.BaselineReceived     += (mean, sd) => AppendLog($"Baseline  mean={mean:F5} N  SD={sd:F5} N");
+        _protocol.FilterInfoReceived   += info  => AppendLog($"Filter: {info}");
+        _protocol.HardwareErrorReceived+= msg   => AppendLog($"✗ Hardware error: {msg}");
         _protocol.OverloadDetected     += ()    => AppendLog("⚠ OVERLOAD detected!");
         _protocol.FirmwareReceived     += v     => FirmwareVersion  = v;
         _protocol.LoadCellTypeReceived += v     => LoadCellType     = v;
@@ -230,6 +239,25 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _protocol.CalibrationOk        += ()    => { AppendLog("✓ Calibration completed successfully"); QuerySystemInfo(); };
         _protocol.CalibrationError     += msg   => AppendLog($"✗ Calibration error: {msg}");
         _protocol.MonitorForce         += f     => LiveForce = $"{f:F5} N";
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // Encoder travel distance helper
+    // ══════════════════════════════════════════════════════════════
+    private void UpdateTravelDistance()
+    {
+        double? home   = ParseMmString(EncoderHome);
+        double? target = ParseMmString(EncoderTarget);
+        Config.TravelDistanceMm = home.HasValue && target.HasValue
+            ? Math.Abs(target.Value - home.Value)
+            : null;
+    }
+
+    private static double? ParseMmString(string value)
+    {
+        var s = value.Replace("mm", "").Trim();
+        return double.TryParse(s, System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out double d) ? d : null;
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -400,9 +428,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         else if (!string.IsNullOrEmpty(SelectedPort))
         {
-            if (_serial.Connect(SelectedPort))
+            if (_serial.Connect(SelectedPort, SelectedBaudRate))
             {
-                AppendLog($"✓ Connected to {SelectedPort}");
+                AppendLog($"✓ Connected to {SelectedPort} @ {SelectedBaudRate} baud");
                 QuerySystemInfo();
             }
             else
@@ -621,7 +649,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             string path = ExcelExportService.Export(
                 _runs.AllData.ToDictionary(k => k.Key, v => v.Value),
-                Path.GetDirectoryName(dlg.FileName)!);
+                Path.GetDirectoryName(dlg.FileName)!,
+                config: Config);
             AppendLog($"✓ Excel saved: {path}");
             MessageBox.Show($"Saved to:\n{path}", "Export Complete", MessageBoxButton.OK, MessageBoxImage.Information);
         }

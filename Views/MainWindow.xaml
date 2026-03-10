@@ -28,6 +28,7 @@
         <conv:BoolToConnectionBrush x:Key="ConnBrush"/>
         <conv:BoolToVisibility x:Key="BoolVis"/>
         <conv:InverseBoolToVisibility x:Key="InvBoolVis"/>
+        <conv:InverseBoolConverter x:Key="InvBool"/>
         <conv:HexToBrush x:Key="HexBrush"/>
         <Style TargetType="ComboBoxItem">
             <Setter Property="Foreground" Value="White"/>
@@ -296,16 +297,28 @@
                                Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,6"/>
                         <Border Background="{StaticResource BgBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,10">
                             <StackPanel>
-                                <Grid Margin="0,0,0,6">
+                                <Grid Margin="0,0,0,4">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <ComboBox ItemsSource="{Binding AvailablePorts}" 
+                                    <ComboBox ItemsSource="{Binding AvailablePorts}"
                                           SelectedItem="{Binding SelectedPort}" Margin="0,0,6,0"/>
-                                    <Button Grid.Column="1" Content="⟳" 
+                                    <Button Grid.Column="1" Content="⟳"
                                         Style="{StaticResource DarkButton}"
                                         Command="{Binding RefreshPortsCommand}" ToolTip="Refresh ports" Margin="0,0,-2,0"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Baud:" VerticalAlignment="Center"
+                                           Foreground="{StaticResource TextDimBrush}" Margin="0,0,6,0" FontSize="10"/>
+                                    <ComboBox Grid.Column="1"
+                                          ItemsSource="{Binding AvailableBaudRates}"
+                                          SelectedItem="{Binding SelectedBaudRate}"
+                                          IsEnabled="{Binding IsConnected, Converter={StaticResource InvBool}}"/>
                                 </Grid>
                                 <Button Command="{Binding ToggleConnectCommand}" Margin="0,0,0,4"
                                     Style="{StaticResource DarkButton}">

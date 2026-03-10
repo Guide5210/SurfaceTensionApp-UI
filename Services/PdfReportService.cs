@@ -101,6 +101,8 @@ public static class PdfReportService
                         rows.Add(new[] { "Wetted Length (4piR)", $"{config.WettedLengthMm.Value:F3} mm" });
                 }
 
+                if (config.TravelDistanceMm.HasValue)
+                    rows.Add(new[] { "Travel Distance (Home→Target)", $"{config.TravelDistanceMm.Value:F3} mm" });
                 if (config.CorrectionFactor.HasValue)
                     rows.Add(new[] { "Correction Factor", $"{config.CorrectionFactor.Value}" });
                 if (config.CanCalculate)
