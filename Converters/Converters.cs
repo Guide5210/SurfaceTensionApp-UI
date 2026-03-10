@@ -35,6 +35,16 @@ public class InverseBoolToVisibility : IValueConverter
         throw new NotImplementedException();
 }
 
+/// <summary>Bool → inverted Bool.</summary>
+public class InverseBoolConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is true ? false : (object)true;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is true ? false : (object)true;
+}
+
 /// <summary>Hex color string → SolidColorBrush.</summary>
 public class HexToBrush : IValueConverter
 {

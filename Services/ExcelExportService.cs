@@ -11,7 +11,8 @@ namespace SurfaceTensionApp.Services;
 /// </summary>
 public static class ExcelExportService
 {
-    public static string Export(Dictionary<string, SpeedGroup> allData, string outputDir)
+    public static string Export(Dictionary<string, SpeedGroup> allData, string outputDir,
+        MeasurementConfig? config = null)
     {
         if (allData.Count == 0) throw new InvalidOperationException("No data to export.");
 
@@ -46,6 +47,13 @@ public static class ExcelExportService
             ws.Cell("B3").Value = group.SpeedMmS * 1000;
             ws.Cell("A4").Value = "Runs:";
             ws.Cell("B4").Value = nr;
+            if (config?.TravelDistanceMm.HasValue == true)
+            {
+                ws.Cell("A5").Value = "Travel Distance (Home→Target):";
+                ws.Cell("B5").Value = $"{config.TravelDistanceMm.Value:F3} mm";
+                ws.Cell("A5").Style.Font.SetItalic(true);
+                ws.Cell("B5").Style.Font.SetItalic(true);
+            }
 
             if (nr > 0 && group.CleanPeaks.Count > 0)
             {

@@ -34,6 +34,19 @@ public class SerialProtocolHandler
     public event Action<string value>? EncoderTargetReceived;
     public event Action? EncoderExited;
 
+    // ── Run settling ──
+    public event Action? Settled;
+    public event Action? SettleTimeout;
+
+    // ── Baseline measurement ──
+    public event Action<double mean, double sd>? BaselineReceived;
+
+    // ── Filter parameters ──
+    public event Action<string info>? FilterInfoReceived;
+
+    // ── Hardware errors ──
+    public event Action<string msg>? HardwareErrorReceived;
+
     // ── Alerts ──
     public event Action? OverloadDetected;
 
@@ -71,6 +84,8 @@ public class SerialProtocolHandler
         if (line.StartsWith("RUN_START:"))            { ParseRunStart(line);                               return; }
         if (line.Contains("START_STREAM"))             { StreamStarted?.Invoke();                           return; }
         if (line.Contains("END_STREAM"))               { StreamEnded?.Invoke();                             return; }
+        if (line == "SETTLED")                         { Settled?.Invoke();                                 return; }
+        if (line.Contains("SETTLE_TIMEOUT"))           { SettleTimeout?.Invoke();                           return; }
         if (line.Contains("READY") ||
             line.Contains("HOME_OK") ||
             line.Contains("HOME reached"))             { ReadyOrHomeReceived?.Invoke();                     return; }
@@ -80,6 +95,9 @@ public class SerialProtocolHandler
         if (line.StartsWith("SPEED_STATS:"))           { /* computed locally — ignore */ return; }
         if (line.StartsWith("BATCH_COMPLETE:"))        { ParseBatchComplete(line);                          return; }
         if (line.Contains("ALL BATCHES COMPLETE"))     { AllBatchesComplete?.Invoke();                      return; }
+        if (line.StartsWith("BASELINE:"))              { ParseBaseline(line);                               return; }
+        if (line.StartsWith("FILTER:"))                { FilterInfoReceived?.Invoke(line[7..].Trim());      return; }
+        if (line.StartsWith("ERROR:"))                 { HardwareErrorReceived?.Invoke(line[6..].Trim());   return; }
         if (line.Contains("ENC_HOME:"))                { EncoderHomeReceived?.Invoke(line.Split(':')[^1].Trim()); return; }
         if (line.Contains("ENC_TARGET:"))              { EncoderTargetReceived?.Invoke(line.Split(':')[^1].Trim()); return; }
         if (line.Contains("ENC_EXIT"))                 { EncoderExited?.Invoke();                           return; }
@@ -156,6 +174,29 @@ public class SerialProtocolHandler
     {
         if (int.TryParse(line.Split(':')[^1], out int bn))
             BatchComplete?.Invoke(bn);
+    }
+
+    /// <summary>
+    /// Parses: BASELINE: [val] mean: [mean] SD: [sd]
+    /// </summary>
+    private void ParseBaseline(string line)
+    {
+        double mean = 0, sd = 0;
+        int meanIdx = line.IndexOf("mean:", StringComparison.OrdinalIgnoreCase);
+        int sdIdx   = line.IndexOf("SD:",   StringComparison.OrdinalIgnoreCase);
+        if (meanIdx >= 0)
+        {
+            var token = line[(meanIdx + 5)..].Trim().Split(' ')[0];
+            double.TryParse(token, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out mean);
+        }
+        if (sdIdx >= 0)
+        {
+            var token = line[(sdIdx + 3)..].Trim().Split(' ')[0];
+            double.TryParse(token, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out sd);
+        }
+        BaselineReceived?.Invoke(mean, sd);
     }
 
     private void ParseMonitorForce(string line)
