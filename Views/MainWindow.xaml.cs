@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using ScottPlot;
 using SurfaceTensionApp.Models;
+using SurfaceTensionApp.Services;
 using SurfaceTensionApp.ViewModels;
 
 namespace SurfaceTensionApp.Views;

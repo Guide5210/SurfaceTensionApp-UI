@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using SurfaceTensionApp.Services;
 
 namespace SurfaceTensionApp.Models;
 
@@ -38,20 +39,20 @@ public class SpeedGroup
     public List<int> OutlierIndices { get; set; } = new();
     public List<double> OutlierValues { get; set; } = new();
 
-    // Manual outlier marks by user
-    public HashSet<int> ManualOutlierIndices { get; } = new();
+    // Manual outlier marks by user — ObservableHashSet fires INotifyCollectionChanged
+    // so any UI element bound to this collection refreshes automatically.
+    public ObservableHashSet<int> ManualOutlierIndices { get; } = new();
 
     public void ComputeOutliers()
     {
-        // First: auto detect via MAD
-        var (autoClean, autoIdx, autoVals) = OutlierRejection.RejectOutliers(PeakForces);
+        // Auto-detect via MAD-based modified Z-score
+        var (_, autoIdx, _) = OutlierRejection.RejectOutliers(PeakForces);
 
         // Merge manual + auto outlier indices
         var allOutlierIdx = new HashSet<int>(autoIdx);
         foreach (int mi in ManualOutlierIndices)
             allOutlierIdx.Add(mi);
 
-        // Rebuild clean/outlier lists
         CleanPeaks = new List<double>();
         OutlierIndices = new List<int>();
         OutlierValues = new List<double>();
@@ -71,14 +72,12 @@ public class SpeedGroup
     }
 
     public double Avg => CleanPeaks.Count > 0 ? CleanPeaks.Average() : 0;
-    public double Std => CleanPeaks.Count > 1 ? StdDev(CleanPeaks) : 0;
-    public double Rsd => Avg != 0 ? Std / Avg * 100 : 0;
 
-    private static double StdDev(List<double> vals)
-    {
-        double avg = vals.Average();
-        return Math.Sqrt(vals.Sum(v => (v - avg) * (v - avg)) / vals.Count);
-    }
+    // Sample standard deviation (Bessel's correction: divide by n-1).
+    // Population StdDev (÷n) would underestimate variability for small samples.
+    public double Std => OutlierRejection.SampleStdDev(CleanPeaks);
+
+    public double Rsd => Avg != 0 ? Std / Avg * 100 : 0;
 }
 
 /// <summary>
@@ -135,207 +134,4 @@ public class StatsRow
     public double StdDev { get; init; }
     public double RsdPercent { get; init; }
     public int Outliers { get; init; }
-}
-
-/// <summary>
-/// Modified Z-score outlier rejection using MAD — exact port from Python.
-/// </summary>
-public static class OutlierRejection
-{
-    public static (List<double> clean, List<int> outlierIdx, List<double> outlierVals)
-        RejectOutliers(List<double> peaks, double threshold = 3.5)
-    {
-        if (peaks.Count < 4)
-            return (new List<double>(peaks), new(), new());
-
-        double[] arr = peaks.ToArray();
-        double median = Median(arr);
-        double[] absDevs = arr.Select(x => Math.Abs(x - median)).ToArray();
-        double mad = Median(absDevs);
-
-        // MAD floor: 2% of |median| to prevent over-rejection on tight data
-        double madFloor = Math.Abs(median) * 0.02;
-        if (mad < madFloor) mad = madFloor;
-
-        if (mad < 1e-10)
-            return (new List<double>(peaks), new(), new());
-
-        var clean = new List<double>();
-        var outlierIdx = new List<int>();
-        var outlierVals = new List<double>();
-
-        for (int i = 0; i < arr.Length; i++)
-        {
-            double modZ = 0.6745 * (arr[i] - median) / mad;
-            if (Math.Abs(modZ) > threshold)
-            {
-                outlierIdx.Add(i);
-                outlierVals.Add(arr[i]);
-            }
-            else
-            {
-                clean.Add(arr[i]);
-            }
-        }
-
-        return (clean, outlierIdx, outlierVals);
-    }
-
-    private static double Median(double[] values)
-    {
-        var sorted = values.OrderBy(x => x).ToArray();
-        int n = sorted.Length;
-        if (n == 0) return 0;
-        return n % 2 == 1 ? sorted[n / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2.0;
-    }
-}
-
-/// <summary>
-/// Spike filter using Rate of Change (derivative) detection.
-/// A point is flagged as a spike when its force value jumps unnaturally
-/// far from its neighbors — preserving the real peak that rises gradually.
-/// When a user-specified maxForce threshold is provided, that absolute
-/// threshold is used instead (backwards-compatible).
-/// </summary>
-public static class SpikeFilter
-{
-    /// <summary>
-    /// Replace spike points with linearly interpolated values.
-    /// </summary>
-    /// <param name="times">Time values.</param>
-    /// <param name="forces">Force values.</param>
-    /// <param name="maxForce">Absolute force threshold — points with force &gt; maxForce are spikes.
-    /// If null, auto-detects using Rate of Change (derivative) method.</param>
-    /// <returns>Same-length arrays with spikes replaced by interpolation, plus spike count.</returns>
-    public static (double[] times, double[] forces, int spikeCount) Apply(
-        double[] times, double[] forces, double? maxForce = null)
-    {
-        int n = forces.Length;
-        if (n < 3)
-            return (times, forces, 0);
-
-        // Mark spike points
-        bool[] isSpike = new bool[n];
-        int spikeCount = 0;
-
-        if (maxForce.HasValue)
-        {
-            // User-specified absolute threshold (unchanged behavior)
-            double upperThreshold = maxForce.Value;
-            for (int i = 0; i < n; i++)
-            {
-                if (forces[i] > upperThreshold)
-                {
-                    isSpike[i] = true;
-                    spikeCount++;
-                }
-            }
-        }
-        else
-        {
-            // Auto-detect using Rate of Change (derivative filter).
-            // Compute point-to-point deltas and use a robust threshold
-            // based on median absolute delta to find sudden jumps.
-            double[] deltas = new double[n - 1];
-            for (int i = 0; i < n - 1; i++)
-                deltas[i] = Math.Abs(forces[i + 1] - forces[i]);
-
-            // Median absolute delta
-            double[] sortedDeltas = new double[deltas.Length];
-            Array.Copy(deltas, sortedDeltas, deltas.Length);
-            Array.Sort(sortedDeltas);
-            double medianDelta = sortedDeltas.Length % 2 == 1
-                ? sortedDeltas[sortedDeltas.Length / 2]
-                : (sortedDeltas[sortedDeltas.Length / 2 - 1] + sortedDeltas[sortedDeltas.Length / 2]) / 2.0;
-
-            // Threshold: a jump must exceed 8x the median delta to be a spike.
-            // Floor prevents false positives when all data is very smooth.
-            double deltaThreshold = Math.Max(medianDelta * 8.0, 1e-6);
-
-            for (int i = 0; i < n; i++)
-            {
-                double deltaLeft = i > 0 ? Math.Abs(forces[i] - forces[i - 1]) : 0;
-                double deltaRight = i < n - 1 ? Math.Abs(forces[i + 1] - forces[i]) : 0;
-
-                // A spike jumps sharply both in AND out (or is at the boundary)
-                // A real peak rises gradually from the left side
-                if (i > 0 && i < n - 1)
-                {
-                    // Interior point: spike if BOTH left and right deltas exceed threshold
-                    if (deltaLeft > deltaThreshold && deltaRight > deltaThreshold)
-                    {
-                        isSpike[i] = true;
-                        spikeCount++;
-                    }
-                }
-                else if (i == 0 && deltaRight > deltaThreshold * 2)
-                {
-                    isSpike[i] = true;
-                    spikeCount++;
-                }
-                else if (i == n - 1 && deltaLeft > deltaThreshold * 2)
-                {
-                    isSpike[i] = true;
-                    spikeCount++;
-                }
-            }
-        }
-
-        if (spikeCount == 0)
-            return (times, forces, 0);
-
-        // Replace spikes with linear interpolation
-        double[] filtered = new double[n];
-        Array.Copy(forces, filtered, n);
-
-        int idx = 0;
-        while (idx < n)
-        {
-            if (!isSpike[idx]) { idx++; continue; }
-
-            // Find the extent of this spike region
-            int regionStart = idx;
-            while (idx < n && isSpike[idx]) idx++;
-            int regionEnd = idx - 1;
-
-            // Boundary clean points for interpolation
-            int left = regionStart - 1;
-            int right = regionEnd + 1;
-
-            if (left < 0 && right >= n)
-            {
-                // Entire signal is above threshold — cannot interpolate
-                continue;
-            }
-
-            if (left < 0)
-            {
-                for (int j = regionStart; j <= regionEnd; j++)
-                    filtered[j] = forces[right];
-                continue;
-            }
-
-            if (right >= n)
-            {
-                for (int j = regionStart; j <= regionEnd; j++)
-                    filtered[j] = forces[left];
-                continue;
-            }
-
-            // Linear interpolation between left and right boundary
-            double tLeft = times[left];
-            double fLeft = forces[left];
-            double tRight = times[right];
-            double fRight = forces[right];
-            double dt = tRight - tLeft;
-
-            for (int j = regionStart; j <= regionEnd; j++)
-            {
-                double t = dt > 1e-12 ? (times[j] - tLeft) / dt : 0.5;
-                filtered[j] = fLeft + t * (fRight - fLeft);
-            }
-        }
-
-        return (times, filtered, spikeCount);
-    }
 }
