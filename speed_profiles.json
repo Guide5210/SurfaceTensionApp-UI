@@ -1,0 +1,14 @@
+[
+  { "Number": 1,  "Name": "ULTRA_FAST", "SpeedMmS": 0.600,    "Description": "Ultra Fast (600 µm/s)",    "SerialCmd": "1" },
+  { "Number": 2,  "Name": "FAST_UP",    "SpeedMmS": 0.450,    "Description": "Fast Up (450 µm/s)",       "SerialCmd": "2" },
+  { "Number": 3,  "Name": "FAST_DN",    "SpeedMmS": 0.150,    "Description": "Fast Down (150 µm/s)",     "SerialCmd": "3" },
+  { "Number": 4,  "Name": "Veight",     "SpeedMmS": 0.1335,   "Description": "V8 (133.5 µm/s)",          "SerialCmd": "4" },
+  { "Number": 5,  "Name": "Vsix",       "SpeedMmS": 0.100125, "Description": "V6 (100.125 µm/s)",        "SerialCmd": "5" },
+  { "Number": 6,  "Name": "Vfour",      "SpeedMmS": 0.06675,  "Description": "V4 (66.75 µm/s)",          "SerialCmd": "6" },
+  { "Number": 7,  "Name": "Vtwo",       "SpeedMmS": 0.0333375,"Description": "V2 (33.3375 µm/s)",        "SerialCmd": "7" },
+  { "Number": 8,  "Name": "MEASURE_F",  "SpeedMmS": 0.01875,  "Description": "Measure F (18.75 µm/s)",   "SerialCmd": "8" },
+  { "Number": 9,  "Name": "MEASURE_M",  "SpeedMmS": 0.0075,   "Description": "Measure M (7.50 µm/s)",    "SerialCmd": "9" },
+  { "Number": 10, "Name": "MEASURE_U",  "SpeedMmS": 0.00375,  "Description": "Measure U (3.75 µm/s)",    "SerialCmd": ""  },
+  { "Number": 11, "Name": "MEASURE_X",  "SpeedMmS": 0.001875, "Description": "Measure X (1.875 µm/s)",   "SerialCmd": "B" },
+  { "Number": 12, "Name": "MEASURE_Z",  "SpeedMmS": 0.00075,  "Description": "Measure Z (0.75 µm/s)",    "SerialCmd": "C" }
+]
